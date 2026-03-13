@@ -6,25 +6,46 @@ MCP server and Claude plugin for [CellarTracker](https://www.cellartracker.com/)
 
 Connects Claude to your CellarTracker account via MCP (Model Context Protocol). Instead of manually exporting and uploading CSVs, Claude can query your cellar data directly through 6 tools. Also includes two skills: one for interpreting CellarTracker data, and one for evaluating wine purchases.
 
+## Prerequisites
+
+- **Python 3.10+** — Check with `python3 --version`. On macOS, install via [Homebrew](https://brew.sh): `brew install python3`
+- **pip** — Comes with Python. Check with `pip3 --version`
+- **Claude Code** — Install from [claude.com/claude-code](https://claude.com/claude-code)
+
 ## Quick start
 
-### Claude Code (plugin)
+### 1. Clone and install
 
 ```bash
-# Test locally
-claude --plugin-dir /path/to/cellartracker-mcp
-
-# Set credentials (add to your shell profile or .env file)
-export CT_USERNAME=your_username
-export CT_PASSWORD=your_password
+git clone https://github.com/slavins-co/cellartracker-mcp.git
+cd cellartracker-mcp
+pip3 install -e .
 ```
 
-Then ask Claude about your cellar — the MCP tools and skills load automatically.
-
-### Claude Desktop
+### 2. Add your CellarTracker credentials
 
 ```bash
-pip install cellartracker-mcp
+cp .env.example .env
+```
+
+Open `.env` in a text editor and replace the placeholder values with your CellarTracker username and password (the same ones you use to log in at cellartracker.com).
+
+### 3. Run with Claude Code
+
+From inside the `cellartracker-mcp` directory:
+
+```bash
+claude --plugin-dir .
+```
+
+That's it — ask Claude about your cellar. The MCP tools and skills load automatically.
+
+### Claude Desktop (alternative)
+
+If you use Claude Desktop instead of Claude Code:
+
+```bash
+pip3 install cellartracker-mcp
 ```
 
 Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
@@ -105,16 +126,16 @@ CellarTracker has no official API. This server uses their URL-based CSV export e
 ## Development
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/cellartracker-mcp.git
+git clone https://github.com/slavins-co/cellartracker-mcp.git
 cd cellartracker-mcp
-pip install -e .
+pip3 install -e .
 
 # Set credentials
 cp .env.example .env
 # Edit .env with your CT credentials
 
-# Test the server
-python -m cellartracker_mcp
+# Test the server imports correctly
+python3 -c "from cellartracker_mcp.server import mcp; print('OK:', list(mcp._tool_manager._tools.keys()))"
 
 # Test with MCP inspector
 mcp dev src/cellartracker_mcp/server.py
