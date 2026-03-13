@@ -1,13 +1,9 @@
 # Credentials
 .env
 
-# Python
-__pycache__/
-*.py[cod]
-*.egg-info/
+# Node
+node_modules/
 dist/
-build/
-.venv/
 
 # Cache
 exports/
@@ -18,3 +14,10 @@ exports/
 
 # OS
 .DS_Store
+
+# Python (legacy)
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+.venv/
