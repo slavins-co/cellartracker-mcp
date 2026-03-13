@@ -17,6 +17,7 @@ import {
   loadTable,
   search,
   spendSummary,
+  toIsoDate,
 } from "./query.js";
 
 /** Load credentials and ensure cache is fresh. Returns table paths. */
@@ -447,16 +448,16 @@ export function createServer(): McpServer {
       if (color) filters.Color = color;
       let results = search(consumedRows, filters);
 
-      // Date range filter on Consumed column
+      // Date range filter on Consumed column (M/D/YYYY → YYYY-MM-DD for comparison)
       if (date_from) {
-        results = results.filter((r) => (r.Consumed ?? "") >= date_from);
+        results = results.filter((r) => toIsoDate(r.Consumed) >= date_from);
       }
       if (date_to) {
-        results = results.filter((r) => (r.Consumed ?? "") <= date_to);
+        results = results.filter((r) => toIsoDate(r.Consumed) <= date_to);
       }
 
       // Sort by consumption date descending
-      results.sort((a, b) => (b.Consumed ?? "").localeCompare(a.Consumed ?? ""));
+      results.sort((a, b) => toIsoDate(b.Consumed).localeCompare(toIsoDate(a.Consumed)));
 
       const total = results.length;
       results = results.slice(0, maxResults);
@@ -520,8 +521,8 @@ export function createServer(): McpServer {
         });
       }
 
-      // Sort by tasting date descending
-      results.sort((a, b) => (b.TastingDate ?? "").localeCompare(a.TastingDate ?? ""));
+      // Sort by tasting date descending (M/D/YYYY → YYYY-MM-DD for comparison)
+      results.sort((a, b) => toIsoDate(b.TastingDate).localeCompare(toIsoDate(a.TastingDate)));
 
       const total = results.length;
       results = results.slice(0, maxResults);
