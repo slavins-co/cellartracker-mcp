@@ -6,15 +6,31 @@ MCP server and Claude plugin for [CellarTracker](https://www.cellartracker.com/)
 
 Connects Claude to your CellarTracker account via MCP (Model Context Protocol). Instead of manually exporting and uploading CSVs, Claude can query your cellar data directly through 6 tools. Also includes two skills: one for interpreting CellarTracker data, and one for evaluating wine purchases.
 
-## Prerequisites
+## Setup
 
-- **Python 3.10+** — Check with `python3 --version`. On macOS, install via [Homebrew](https://brew.sh): `brew install python3`
-- **pip** — Comes with Python. Check with `pip3 --version`
-- **Claude Code** — Install from [claude.com/claude-code](https://claude.com/claude-code)
+### Step 1: Install Python
 
-## Quick start
+You need Python 3.10 or newer. Check what you have:
 
-### 1. Clone and install
+```bash
+python3 --version
+```
+
+If you see 3.9 or lower (common on macOS), install via [Homebrew](https://brew.sh):
+
+```bash
+brew install python3
+```
+
+If `python3 --version` still shows the old version after installing, add Homebrew to your PATH:
+
+```bash
+echo 'export PATH="/opt/homebrew/bin:$PATH"' >> ~/.zshrc
+source ~/.zshrc
+python3 --version  # Should now show 3.10+
+```
+
+### Step 2: Clone and install
 
 ```bash
 git clone https://github.com/slavins-co/cellartracker-mcp.git
@@ -24,17 +40,23 @@ source .venv/bin/activate
 pip install -e .
 ```
 
-### 2. Add your CellarTracker credentials
+### Step 3: Add your CellarTracker credentials
+
+Create a credentials file that all interfaces (Claude Code, Claude Desktop) will share:
 
 ```bash
-cp .env.example .env
+mkdir -p ~/.config/cellartracker-mcp
+cat > ~/.config/cellartracker-mcp/.env << 'EOF'
+CT_USERNAME=your_cellartracker_username
+CT_PASSWORD=your_cellartracker_password
+EOF
 ```
 
-Open `.env` in a text editor and replace the placeholder values with your CellarTracker username and password (the same ones you use to log in at cellartracker.com).
+Replace the values with your CellarTracker login (the same username and password you use at cellartracker.com).
 
-### 3. Run with Claude Code
+### Step 4: Use it
 
-From inside the `cellartracker-mcp` directory (with the venv still activated):
+**Claude Code** — from inside the `cellartracker-mcp` directory:
 
 ```bash
 claude --plugin-dir .
@@ -42,45 +64,29 @@ claude --plugin-dir .
 
 That's it — ask Claude about your cellar. The MCP tools and skills load automatically.
 
-### Claude Desktop (alternative)
-
-If you use Claude Desktop instead of Claude Code:
-
-```bash
-pip3 install cellartracker-mcp
-```
-
-Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
+**Claude Desktop** — add this to your config file (`~/Library/Application Support/Claude/claude_desktop_config.json`), inside the `"mcpServers"` object:
 
 ```json
-{
-  "mcpServers": {
-    "cellartracker": {
-      "command": "cellartracker-mcp",
-      "env": {
-        "CT_USERNAME": "your_username",
-        "CT_PASSWORD": "your_password"
-      }
-    }
-  }
+"cellartracker": {
+  "command": "/full/path/to/cellartracker-mcp/.venv/bin/cellartracker-mcp"
 }
 ```
 
-Restart Claude Desktop.
+Replace `/full/path/to/` with the actual path where you cloned the repo (e.g., `/Users/you/Desktop/cellartracker-mcp`). Then restart Claude Desktop.
 
-### Claude.ai (remote MCP)
+No credentials needed in the Desktop config — the server reads them from `~/.config/cellartracker-mcp/.env`.
 
-Remote MCP requires hosting the server on a publicly accessible endpoint. See the [MCP docs on remote servers](https://modelcontextprotocol.io/docs/develop/connect-remote-servers) for hosting options. The server code supports both stdio and HTTP transports.
+**Claude.ai (remote MCP)** — remote MCP requires hosting the server on a publicly accessible endpoint. See the [MCP docs on remote servers](https://modelcontextprotocol.io/docs/develop/connect-remote-servers) for hosting options. The server code supports both stdio and HTTP transports.
 
 ## Configuration
 
 ### Credentials
 
-Set your CellarTracker username and password (same as your web login). Resolution order:
+The server looks for `CT_USERNAME` and `CT_PASSWORD` in this order:
 
-1. Environment variables: `CT_USERNAME`, `CT_PASSWORD`
-2. `.env` file in current directory
-3. `~/.config/cellartracker-mcp/.env`
+1. `~/.config/cellartracker-mcp/.env` (recommended — shared across all interfaces)
+2. `.env` file in the project directory
+3. Environment variables
 
 ### Cache
 
