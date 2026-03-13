@@ -7,6 +7,17 @@ import path from "node:path";
 
 const BASE_URL = "https://www.cellartracker.com/xlquery.asp";
 
+const AUTH_MESSAGE =
+  "CellarTracker authentication failed. Verify your CT_USERNAME and CT_PASSWORD are correct.";
+
+/** Typed error for authentication failures — passes through the credential-stripping catch. */
+class AuthError extends Error {
+  constructor() {
+    super(AUTH_MESSAGE);
+    this.name = "AuthError";
+  }
+}
+
 export const TABLES: Record<
   string,
   { params: Record<string, string>; desc: string }
@@ -44,13 +55,19 @@ export async function fetchTable(
       signal: AbortSignal.timeout(60_000),
       redirect: "error",
     });
+    if (response.status === 401 || response.status === 403) {
+      throw new AuthError();
+    }
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
     }
     buffer = await response.arrayBuffer();
   } catch (e) {
-    // Re-throw without the original chain to avoid leaking credentials
-    // embedded in the URL query string via stack trace
+    // Preserve typed auth errors; strip all others to avoid leaking
+    // credentials embedded in the URL query string via stack trace
+    if (e instanceof AuthError) {
+      throw e;
+    }
     const table = extraParams.Table ?? "unknown";
     const errType = e instanceof Error ? e.constructor.name : "Error";
     throw new Error(
@@ -59,6 +76,12 @@ export async function fetchTable(
   }
 
   const text = new TextDecoder("windows-1252").decode(buffer);
+
+  // CellarTracker returns HTML (not CSV) when credentials are wrong, with HTTP 200.
+  if (text.trimStart().startsWith("<")) {
+    throw new AuthError();
+  }
+
   return text.replace(/\r\n/g, "\n");
 }
 

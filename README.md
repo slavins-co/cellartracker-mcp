@@ -26,20 +26,31 @@ Works with both **Claude Desktop** (mac app) and **Claude Code**. No prerequisit
 
 ### Step 3: Set up your CellarTracker credentials
 
-Create a credentials file (one-time setup):
+Set `CT_USERNAME` and `CT_PASSWORD` environment variables with your cellartracker.com login. Choose one method:
+
+**Option A — Shell profile** (recommended for most users):
+
+Add to your `~/.zshrc` (or `~/.bashrc`):
+
+```bash
+export CT_USERNAME=your_cellartracker_username
+export CT_PASSWORD=your_cellartracker_password
+```
+
+Then restart your terminal or run `source ~/.zshrc`.
+
+**Option B — Config file** (alternative for CLI users):
 
 ```bash
 mkdir -p ~/.config/cellartracker-mcp
-```
-
-Then create the file `~/.config/cellartracker-mcp/.env` with your CellarTracker login:
-
-```
+cat > ~/.config/cellartracker-mcp/.env << 'EOF'
 CT_USERNAME=your_cellartracker_username
 CT_PASSWORD=your_cellartracker_password
+EOF
+chmod 600 ~/.config/cellartracker-mcp/.env
 ```
 
-These are the same username and password you use at cellartracker.com. Credentials are stored only on your machine and never sent anywhere except CellarTracker's own servers.
+Credentials are stored only on your machine and never sent anywhere except CellarTracker's own servers.
 
 ### Step 4: Restart Claude
 
