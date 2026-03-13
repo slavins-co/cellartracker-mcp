@@ -24,11 +24,17 @@ Works with both **Claude Desktop** (mac app) and **Claude Code**. No prerequisit
 /plugin install cellartracker-mcp@cellartracker-mcp
 ```
 
-### Step 3: Set up your CellarTracker credentials
+### Step 3: Connect your CellarTracker account
 
-Set `CT_USERNAME` and `CT_PASSWORD` environment variables with your cellartracker.com login. Choose one method:
+**Easiest — just ask Claude** (recommended):
 
-**Option A — Shell profile** (recommended for most users):
+After installing, start a conversation and say:
+
+> *"Set up my CellarTracker credentials"*
+
+Claude will ask for your cellartracker.com username and password, verify them, and save them securely. You're ready to go immediately — no restart needed.
+
+**Alternative — environment variables** (for advanced users):
 
 Add to your `~/.zshrc` (or `~/.bashrc`):
 
@@ -37,31 +43,19 @@ export CT_USERNAME=your_cellartracker_username
 export CT_PASSWORD=your_cellartracker_password
 ```
 
-Then restart your terminal or run `source ~/.zshrc`.
-
-**Option B — Config file** (alternative for CLI users):
-
-```bash
-mkdir -p ~/.config/cellartracker-mcp
-cat > ~/.config/cellartracker-mcp/.env << 'EOF'
-CT_USERNAME=your_cellartracker_username
-CT_PASSWORD=your_cellartracker_password
-EOF
-chmod 600 ~/.config/cellartracker-mcp/.env
-```
+Then restart your terminal and relaunch Claude.
 
 Credentials are stored only on your machine and never sent anywhere except CellarTracker's own servers.
 
-### Step 4: Restart Claude
+### Step 4: Try it
 
-Fully quit and reopen Claude Desktop, or restart your Claude Code session.
-
-Try it: *"What wines should I open this week?"*
+*"What wines should I open this week?"*
 
 ## What you can do
 
 | Tool | What it does |
 |------|-------------|
+| `setup-credentials` | Connect your CellarTracker account (or update your login) |
 | `search-cellar` | Find wines by name, color, region, varietal, location, or vintage |
 | `drinking-recommendations` | Wines to open now, sorted by drinking window urgency |
 | `cellar-stats` | Collection overview — totals and breakdowns by any dimension |
