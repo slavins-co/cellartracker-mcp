@@ -2,6 +2,7 @@
 
 import os
 import shutil
+import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import datetime, timedelta
@@ -32,7 +33,7 @@ def fetch_table(user: str, password: str, extra_params: dict) -> str:
     try:
         with urllib.request.urlopen(req, timeout=60) as resp:
             raw = resp.read()
-    except Exception as e:
+    except (urllib.error.URLError, OSError) as e:
         # Re-raise without the original chain to avoid leaking credentials
         # embedded in the URL query string via traceback
         table = extra_params.get("Table", "unknown")
@@ -52,8 +53,8 @@ def _save_csv(csv_text: str, table_name: str, cache_dir: Path) -> Path:
     timestamped.write_text(csv_text, encoding="utf-8")
     os.chmod(timestamped, 0o600)
     # Update latest as a plain copy (more portable than symlinks)
+    # copy2 preserves permissions from timestamped (already 0o600)
     shutil.copy2(timestamped, latest)
-    os.chmod(latest, 0o600)
     return latest
 
 

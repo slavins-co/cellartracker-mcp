@@ -82,6 +82,8 @@ def get_cache_dir() -> Path:
         cache_dir = Path(override)
     else:
         cache_dir = Path.home() / ".cache" / "cellartracker-mcp" / "exports"
+    created = not cache_dir.exists()
     cache_dir.mkdir(parents=True, exist_ok=True)
-    os.chmod(cache_dir, 0o700)
+    if created:
+        os.chmod(cache_dir, 0o700)
     return cache_dir
