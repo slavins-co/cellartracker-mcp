@@ -100,9 +100,8 @@ export function getCacheDir(): string {
     ? override
     : path.join(os.homedir(), ".cache", "cellartracker-mcp", "exports");
 
-  const created = !fs.existsSync(cacheDir);
   fs.mkdirSync(cacheDir, { recursive: true });
-  if (created) {
+  if (process.platform !== "win32") {
     fs.chmodSync(cacheDir, 0o700);
   }
   return cacheDir;

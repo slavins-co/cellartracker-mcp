@@ -42,6 +42,7 @@ export async function fetchTable(
   try {
     const response = await fetch(url, {
       signal: AbortSignal.timeout(60_000),
+      redirect: "error",
     });
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
