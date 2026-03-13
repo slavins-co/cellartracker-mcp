@@ -19,7 +19,9 @@ Connects Claude to your CellarTracker account via MCP (Model Context Protocol). 
 ```bash
 git clone https://github.com/slavins-co/cellartracker-mcp.git
 cd cellartracker-mcp
-pip3 install -e .
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e .
 ```
 
 ### 2. Add your CellarTracker credentials
@@ -32,7 +34,7 @@ Open `.env` in a text editor and replace the placeholder values with your Cellar
 
 ### 3. Run with Claude Code
 
-From inside the `cellartracker-mcp` directory:
+From inside the `cellartracker-mcp` directory (with the venv still activated):
 
 ```bash
 claude --plugin-dir .
@@ -128,7 +130,9 @@ CellarTracker has no official API. This server uses their URL-based CSV export e
 ```bash
 git clone https://github.com/slavins-co/cellartracker-mcp.git
 cd cellartracker-mcp
-pip3 install -e .
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e .
 
 # Set credentials
 cp .env.example .env
