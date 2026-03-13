@@ -44,13 +44,21 @@ export async function fetchTable(
       signal: AbortSignal.timeout(60_000),
       redirect: "error",
     });
+    if (response.status === 401 || response.status === 403) {
+      throw new Error(
+        "CellarTracker authentication failed. Verify your CT_USERNAME and CT_PASSWORD are correct."
+      );
+    }
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
     }
     buffer = await response.arrayBuffer();
   } catch (e) {
-    // Re-throw without the original chain to avoid leaking credentials
-    // embedded in the URL query string via stack trace
+    // Preserve auth errors as-is; strip other errors to avoid leaking
+    // credentials embedded in the URL query string via stack trace
+    if (e instanceof Error && e.message.includes("authentication failed")) {
+      throw e;
+    }
     const table = extraParams.Table ?? "unknown";
     const errType = e instanceof Error ? e.constructor.name : "Error";
     throw new Error(
@@ -59,6 +67,15 @@ export async function fetchTable(
   }
 
   const text = new TextDecoder("windows-1252").decode(buffer);
+
+  // CellarTracker returns HTML (not CSV) when credentials are wrong, with HTTP 200.
+  const trimmed = text.trimStart();
+  if (trimmed.startsWith("<") || trimmed.toLowerCase().includes("<html")) {
+    throw new Error(
+      "CellarTracker authentication failed. Verify your CT_USERNAME and CT_PASSWORD are correct."
+    );
+  }
+
   return text.replace(/\r\n/g, "\n");
 }
 
