@@ -34,6 +34,11 @@ export function loadEnvFile(filePath: string): Record<string, string> {
   return env;
 }
 
+/** Return the config directory path: ~/.config/cellartracker-mcp/ */
+export function getConfigDir(): string {
+  return path.join(os.homedir(), ".config", "cellartracker-mcp");
+}
+
 /**
  * Load CellarTracker username and password.
  *
@@ -54,7 +59,7 @@ export function getCredentials(): { username: string; password: string } {
   // Try .env files in order
   const envPaths = [
     path.join(process.cwd(), ".env"),
-    path.join(os.homedir(), ".config", "cellartracker-mcp", ".env"),
+    path.join(getConfigDir(), ".env"),
   ];
 
   for (const envPath of envPaths) {
@@ -81,7 +86,8 @@ export function getCredentials(): { username: string; password: string } {
   }
 
   throw new Error(
-    "CellarTracker credentials not found. Set CT_USERNAME and CT_PASSWORD via:\n" +
+    "CellarTracker credentials not found.\n\n" +
+      "Use the setup-credentials tool to configure your login, or set CT_USERNAME and CT_PASSWORD via:\n" +
       "  - Environment variables\n" +
       "  - .env file in current directory\n" +
       "  - ~/.config/cellartracker-mcp/.env"

@@ -5,8 +5,10 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
-import { getCacheDir, getCredentials } from "./config.js";
-import { TABLES, ensureFresh, exportAll } from "./exporter.js";
+import fs from "node:fs";
+
+import { getCacheDir, getConfigDir, getCredentials } from "./config.js";
+import { TABLES, ensureFresh, exportAll, fetchTable } from "./exporter.js";
 import {
   type Row,
   aggregate,
@@ -98,7 +100,7 @@ function maturityLabel(row: Row, currentYear: number): string {
 export function createServer(): McpServer {
   const server = new McpServer({
     name: "cellartracker",
-    version: "0.2.1",
+    version: "0.2.2",
   });
 
   // --- search-cellar ---
@@ -444,6 +446,65 @@ export function createServer(): McpServer {
       }
 
       return { content: [{ type: "text", text: lines.join("\n") }] };
+    }
+  );
+
+  // --- setup-credentials ---
+  server.tool(
+    "setup-credentials",
+    "Set up or update your CellarTracker login credentials. " +
+      "Validates credentials against CellarTracker before saving. " +
+      "Use this if you just installed the plugin or need to change your login.",
+    {
+      username: z.string().describe("Your CellarTracker username"),
+      password: z.string().describe("Your CellarTracker password"),
+    },
+    async ({ username, password }) => {
+      // Validate credentials by fetching a small table
+      try {
+        await fetchTable(username, password, { Table: "List", Location: "1" });
+      } catch {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text:
+                "Invalid credentials — CellarTracker rejected that username/password combination. " +
+                "Please double-check your cellartracker.com login and try again.",
+            },
+          ],
+        };
+      }
+
+      // Write config file
+      const configDir = getConfigDir();
+      fs.mkdirSync(configDir, { recursive: true });
+      if (process.platform !== "win32") {
+        fs.chmodSync(configDir, 0o700);
+      }
+
+      const envPath = `${configDir}/.env`;
+      fs.writeFileSync(envPath, `CT_USERNAME=${username}\nCT_PASSWORD=${password}\n`, "utf-8");
+      if (process.platform !== "win32") {
+        fs.chmodSync(envPath, 0o600);
+      }
+
+      // Warn if env vars are set (they take priority over the config file)
+      const envWarning =
+        process.env.CT_USERNAME || process.env.CT_PASSWORD
+          ? "\n\nNote: CT_USERNAME/CT_PASSWORD environment variables are also set and take priority over this config file."
+          : "";
+
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text:
+              `Credentials saved and verified! Your CellarTracker account is now connected.\n\n` +
+              `You can start using tools like search-cellar, drinking-recommendations, and cellar-stats right away.${envWarning}`,
+          },
+        ],
+      };
     }
   );
 
