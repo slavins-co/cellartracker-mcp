@@ -45,7 +45,7 @@ export CT_PASSWORD=your_cellartracker_password
 
 Then restart your terminal and relaunch Claude.
 
-Credentials are stored only on your machine and never sent anywhere except CellarTracker's own servers.
+Credentials are stored only on your machine. When using the setup tool, they pass through Anthropic's servers as part of the conversation. They are sent to CellarTracker's servers for authentication.
 
 ### Step 4: Try it
 
