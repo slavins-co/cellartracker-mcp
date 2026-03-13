@@ -1,8 +1,8 @@
 {
   "mcpServers": {
     "cellartracker": {
-      "command": ".venv/bin/python",
-      "args": ["-m", "cellartracker_mcp"]
+      "command": "uvx",
+      "args": ["cellartracker-mcp"]
     }
   }
 }

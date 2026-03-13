@@ -23,5 +23,6 @@ dependencies = ["mcp[cli]"]
 cellartracker-mcp = "cellartracker_mcp.server:main"
 
 [project.urls]
-Homepage = "https://github.com/bradslavin/cellartracker-mcp"
-Repository = "https://github.com/bradslavin/cellartracker-mcp"
+Homepage = "https://github.com/slavins-co/cellartracker-mcp"
+Repository = "https://github.com/slavins-co/cellartracker-mcp"
+Issues = "https://github.com/slavins-co/cellartracker-mcp/issues"

@@ -1,0 +1,18 @@
+{
+  "name": "cellartracker-mcp",
+  "owner": {
+    "name": "Brad Slavin"
+  },
+  "plugins": [
+    {
+      "name": "cellartracker-mcp",
+      "source": "./",
+      "description": "CellarTracker wine cellar management — MCP tools + skills for inventory, drinking recommendations, and purchase evaluation.",
+      "version": "1.0.0",
+      "author": { "name": "Brad Slavin" },
+      "license": "MIT",
+      "keywords": ["wine", "cellartracker", "cellar", "mcp"],
+      "category": "integrations"
+    }
+  ]
+}
