@@ -1,7 +1,7 @@
 {
   "name": "cellartracker-mcp",
   "description": "CellarTracker wine cellar management — MCP tools for inventory, drinking recommendations, purchase history, and wishlist. Includes skills for data interpretation and purchase evaluation.",
-  "version": "1.0.0",
+  "version": "0.2.4",
   "author": {
     "name": "Brad Slavin"
   },
