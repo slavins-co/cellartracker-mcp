@@ -109,6 +109,9 @@ def search_cellar(
 ) -> str:
     """Search your wine cellar by name, color, region, varietal, location, or vintage range.
 
+    The region parameter searches across Country, Region, SubRegion, Appellation,
+    and Locale fields — so "Italy", "Piedmont", or "Barolo" all work.
+
     Returns matching wines with details including location, quantity, price,
     drinking window, and professional scores. Limited to 25 results.
     """
@@ -122,14 +125,21 @@ def search_cellar(
         filters["Wine"] = query
     if color:
         filters["Color"] = color
-    if region:
-        filters["Region"] = region
     if varietal:
         filters["Varietal"] = varietal
     if location:
         filters["Location"] = location
 
     results = search(list_rows, filters)
+
+    # Region searches across all geographic fields (Country, Region, SubRegion, Appellation, Locale)
+    if region:
+        term = region.lower()
+        geo_fields = ("Country", "Region", "SubRegion", "Appellation", "Locale")
+        results = [
+            row for row in results
+            if any(term in row.get(f, "").lower() for f in geo_fields)
+        ]
 
     # Apply vintage range filter
     if vintage_min is not None or vintage_max is not None:
@@ -234,7 +244,7 @@ def drinking_recommendations(
 def cellar_stats(group_by: str | None = None) -> str:
     """Get cellar statistics: total bottles, value, unique wines, and optional breakdowns.
 
-    Valid group_by options: color, region, varietal, location, category.
+    Valid group_by options: color, country, region, varietal, location, category.
     """
     paths = _get_fresh_paths()
     list_rows = load_table(paths["List"])
@@ -242,6 +252,7 @@ def cellar_stats(group_by: str | None = None) -> str:
     # Column name mapping for group_by
     column_map = {
         "color": "Color",
+        "country": "Country",
         "region": "Region",
         "varietal": "Varietal",
         "location": "Location",
