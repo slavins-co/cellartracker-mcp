@@ -1,5 +1,5 @@
 /**
- * CellarTracker MCP Server — 6 tools for querying wine cellar data.
+ * CellarTracker MCP Server — 7 tools for querying wine cellar data.
  */
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -8,7 +8,7 @@ import { z } from "zod";
 import fs from "node:fs";
 
 import { getCacheDir, getConfigDir, getCredentials } from "./config.js";
-import { TABLES, ensureFresh, exportAll, fetchTable } from "./exporter.js";
+import { AuthError, TABLES, ensureFresh, exportAll, fetchTable } from "./exporter.js";
 import {
   type Row,
   aggregate,
@@ -96,7 +96,7 @@ function maturityLabel(row: Row, currentYear: number): string {
   return "No maturity data";
 }
 
-/** Create and configure the MCP server with all 6 tools. */
+/** Create and configure the MCP server with all 7 tools. */
 export function createServer(): McpServer {
   const server = new McpServer({
     name: "cellartracker",
@@ -462,15 +462,39 @@ export function createServer(): McpServer {
     async ({ username, password }) => {
       // Validate credentials by fetching a small table
       try {
-        await fetchTable(username, password, { Table: "List", Location: "1" });
-      } catch {
+        await fetchTable(username, password, TABLES.List.params);
+      } catch (e) {
+        if (e instanceof AuthError) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text:
+                  "Invalid credentials — CellarTracker rejected that username/password combination. " +
+                  "Please double-check your cellartracker.com login and try again.",
+              },
+            ],
+          };
+        }
         return {
           content: [
             {
               type: "text" as const,
               text:
-                "Invalid credentials — CellarTracker rejected that username/password combination. " +
-                "Please double-check your cellartracker.com login and try again.",
+                "Could not reach CellarTracker to verify your credentials. " +
+                "Check your network connection and try again.",
+            },
+          ],
+        };
+      }
+
+      // Reject values that would corrupt the .env file
+      if (/[\r\n]/.test(username) || /[\r\n]/.test(password)) {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: "Username and password must not contain newline characters.",
             },
           ],
         };
@@ -491,7 +515,7 @@ export function createServer(): McpServer {
 
       // Warn if env vars are set (they take priority over the config file)
       const envWarning =
-        process.env.CT_USERNAME || process.env.CT_PASSWORD
+        process.env.CT_USERNAME && process.env.CT_PASSWORD
           ? "\n\nNote: CT_USERNAME/CT_PASSWORD environment variables are also set and take priority over this config file."
           : "";
 

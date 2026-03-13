@@ -11,7 +11,7 @@ const AUTH_MESSAGE =
   "CellarTracker authentication failed. Verify your CT_USERNAME and CT_PASSWORD are correct.";
 
 /** Typed error for authentication failures — passes through the credential-stripping catch. */
-class AuthError extends Error {
+export class AuthError extends Error {
   constructor() {
     super(AUTH_MESSAGE);
     this.name = "AuthError";
