@@ -1,5 +1,5 @@
 /**
- * CellarTracker MCP Server — 7 tools for querying wine cellar data.
+ * CellarTracker MCP Server — 9 tools for querying wine cellar data.
  */
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -17,6 +17,7 @@ import {
   loadTable,
   search,
   spendSummary,
+  toIsoDate,
 } from "./query.js";
 
 /** Load credentials and ensure cache is fresh. Returns table paths. */
@@ -96,11 +97,11 @@ function maturityLabel(row: Row, currentYear: number): string {
   return "No maturity data";
 }
 
-/** Create and configure the MCP server with all 7 tools. */
+/** Create and configure the MCP server with all 9 tools. */
 export function createServer(): McpServer {
   const server = new McpServer({
     name: "cellartracker",
-    version: "0.2.3",
+    version: "0.2.4",
   });
 
   // --- search-cellar ---
@@ -418,6 +419,137 @@ export function createServer(): McpServer {
         if (notes) lines.push(`    Notes: ${notes}`);
         if (maxPrice) lines.push(`    Max price: $${maxPrice}`);
         lines.push("");
+      }
+
+      return { content: [{ type: "text", text: lines.join("\n") }] };
+    }
+  );
+
+  // --- consumption-history ---
+  server.tool(
+    "consumption-history",
+    "Search your consumption history — wines you've opened and drunk. " +
+      "Filter by wine name, color, or date range. " +
+      "Returns most recent consumptions first with tasting context. Limited to 25 results.",
+    {
+      query: z.string().optional().describe("Wine name search term"),
+      color: z.string().optional().describe("Filter by color (Red, White, Rosé)"),
+      date_from: z.string().optional().describe("Start date (YYYY-MM-DD)"),
+      date_to: z.string().optional().describe("End date (YYYY-MM-DD)"),
+      max_results: z.number().optional().describe("Maximum results (default 25)"),
+    },
+    async ({ query, color, date_from, date_to, max_results }) => {
+      const maxResults = max_results ?? 25;
+      const paths = await getFreshPaths();
+      const consumedRows = loadTable(paths.Consumed);
+
+      const filters: Record<string, string | undefined> = {};
+      if (query) filters.Wine = query;
+      if (color) filters.Color = color;
+      let results = search(consumedRows, filters);
+
+      // Date range filter on Consumed column (M/D/YYYY → YYYY-MM-DD for comparison)
+      if (date_from) {
+        results = results.filter((r) => toIsoDate(r.Consumed) >= date_from);
+      }
+      if (date_to) {
+        results = results.filter((r) => toIsoDate(r.Consumed) <= date_to);
+      }
+
+      // Sort by consumption date descending
+      results.sort((a, b) => toIsoDate(b.Consumed).localeCompare(toIsoDate(a.Consumed)));
+
+      const total = results.length;
+      results = results.slice(0, maxResults);
+
+      if (results.length === 0) {
+        return { content: [{ type: "text", text: "No consumption records found matching your criteria." }] };
+      }
+
+      const lines = [`Found ${total} consumption record(s):\n`];
+      for (const row of results) {
+        const vintage = row.Vintage ?? "NV";
+        const wine = row.Wine ?? "Unknown";
+        const date = row.Consumed ?? "?";
+        const shortType = (row.ShortType ?? "").trim();
+        const notes = (row.ConsumptionNote ?? "").trim();
+        const value = row.Value ?? row.Price ?? "";
+        const loc = row.Location ?? row.Bin ?? "";
+
+        lines.push(`  ${date}  ${vintage} ${wine}`);
+        if (shortType) lines.push(`    Type: ${shortType}`);
+        if (loc) lines.push(`    Location: ${loc}`);
+        if (value) lines.push(`    Value: $${value}`);
+        if (notes) lines.push(`    Notes: ${notes}`);
+        lines.push("");
+      }
+      if (total > maxResults) {
+        lines.push(`(Showing ${maxResults} of ${total} results. Narrow your search for more specific results.)`);
+      }
+
+      return { content: [{ type: "text", text: lines.join("\n") }] };
+    }
+  );
+
+  // --- tasting-notes ---
+  server.tool(
+    "tasting-notes",
+    "Search your tasting notes and reviews. " +
+      "Filter by wine name, color, or minimum rating. " +
+      "Returns notes with ratings, scores, and tasting details. Limited to 25 results.",
+    {
+      query: z.string().optional().describe("Wine name search term"),
+      color: z.string().optional().describe("Filter by color (Red, White, Rosé)"),
+      min_rating: z.number().optional().describe("Minimum rating filter"),
+      max_results: z.number().optional().describe("Maximum results (default 25)"),
+    },
+    async ({ query, color, min_rating, max_results }) => {
+      const maxResults = max_results ?? 25;
+      const paths = await getFreshPaths();
+      const notesRows = loadTable(paths.Notes);
+
+      const filters: Record<string, string | undefined> = {};
+      if (query) filters.Wine = query;
+      if (color) filters.Color = color;
+      let results = search(notesRows, filters);
+
+      // Rating filter
+      if (min_rating !== undefined) {
+        results = results.filter((r) => {
+          const rating = parseFloat(r.Rating ?? "0");
+          return !isNaN(rating) && rating >= min_rating;
+        });
+      }
+
+      // Sort by tasting date descending (M/D/YYYY → YYYY-MM-DD for comparison)
+      results.sort((a, b) => toIsoDate(b.TastingDate).localeCompare(toIsoDate(a.TastingDate)));
+
+      const total = results.length;
+      results = results.slice(0, maxResults);
+
+      if (results.length === 0) {
+        return { content: [{ type: "text", text: "No tasting notes found matching your criteria." }] };
+      }
+
+      const lines = [`Found ${total} tasting note(s):\n`];
+      for (const row of results) {
+        const vintage = row.Vintage ?? "NV";
+        const wine = row.Wine ?? "Unknown";
+        const date = row.TastingDate ?? "?";
+        const rating = (row.Rating ?? "").trim();
+        const notes = (row.TastingNotes ?? "").trim();
+        const cScore = (row.CScore ?? "").trim();
+        const event = [row.EventTitle, row.EventLocation].filter(Boolean).join(" — ");
+
+        lines.push(`  ${date}  ${vintage} ${wine}`);
+        if (rating) lines.push(`    Rating: ${rating}`);
+        if (cScore && cScore !== "0") lines.push(`    Community: ${cScore}`);
+        if (event) lines.push(`    Event: ${event}`);
+        if (notes) lines.push(`    Notes: ${notes}`);
+        lines.push("");
+      }
+      if (total > maxResults) {
+        lines.push(`(Showing ${maxResults} of ${total} results. Narrow your search for more specific results.)`);
       }
 
       return { content: [{ type: "text", text: lines.join("\n") }] };

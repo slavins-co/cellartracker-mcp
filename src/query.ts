@@ -129,6 +129,28 @@ export function crossReference(
   });
 }
 
+/**
+ * Normalize a date string to YYYY-MM-DD for reliable comparison and sorting.
+ * Handles M/D/YYYY (CellarTracker export format) and YYYY-MM-DD (user input).
+ * Returns "" for unparseable values so they sort to the end.
+ */
+export function toIsoDate(value: string | undefined): string {
+  if (!value?.trim()) return "";
+  const v = value.trim();
+
+  // Already YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
+
+  // M/D/YYYY → YYYY-MM-DD
+  const match = v.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (match) {
+    const [, m, d, y] = match;
+    return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
+  }
+
+  return "";
+}
+
 function safeFloat(value: string | undefined, fallback = -1): number {
   if (!value?.trim()) return fallback;
   const n = parseFloat(value.trim());
@@ -201,10 +223,10 @@ export function spendSummary(
 ): SpendSummaryResult {
   let filtered = purchaseRows;
   if (dateFrom) {
-    filtered = filtered.filter((r) => (r.PurchaseDate ?? "") >= dateFrom);
+    filtered = filtered.filter((r) => toIsoDate(r.PurchaseDate) >= dateFrom);
   }
   if (dateTo) {
-    filtered = filtered.filter((r) => (r.PurchaseDate ?? "") <= dateTo);
+    filtered = filtered.filter((r) => toIsoDate(r.PurchaseDate) <= dateTo);
   }
 
   let total = 0;
@@ -229,7 +251,7 @@ export function spendSummary(
 
   // Recent purchases (last 10 by date)
   const sorted = [...filtered].sort(
-    (a, b) => (b.PurchaseDate ?? "").localeCompare(a.PurchaseDate ?? "")
+    (a, b) => toIsoDate(b.PurchaseDate).localeCompare(toIsoDate(a.PurchaseDate))
   );
 
   // Round store totals
