@@ -1,0 +1,20 @@
+# Credentials
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+
+# Cache
+exports/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
