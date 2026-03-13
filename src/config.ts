@@ -6,6 +6,11 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
+/** Detect unresolved MCP client template strings like "${CT_USERNAME}". */
+function looksLikeTemplate(value: string): boolean {
+  return /^\$\{.+\}$/.test(value);
+}
+
 /** Parse key=value pairs from a .env file. Skips comments and blank lines. */
 export function loadEnvFile(filePath: string): Record<string, string> {
   const env: Record<string, string> = {};
@@ -52,7 +57,7 @@ export function getCredentials(): { username: string; password: string } {
   // Check env vars first
   const envUser = process.env.CT_USERNAME;
   const envPass = process.env.CT_PASSWORD;
-  if (envUser && envPass) {
+  if (envUser && envPass && !looksLikeTemplate(envUser) && !looksLikeTemplate(envPass)) {
     return { username: envUser, password: envPass };
   }
 

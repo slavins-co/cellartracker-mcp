@@ -28,11 +28,13 @@ Works with both **Claude Desktop** (mac app) and **Claude Code**. No prerequisit
 
 **Easiest — just ask Claude** (recommended):
 
-After installing, start a conversation and say:
+After installing, open **Claude Code** and say:
 
 > *"Set up my CellarTracker credentials"*
 
 Claude will ask for your cellartracker.com username and password, verify them, and save them securely. You're ready to go immediately — no restart needed.
+
+> **Note:** Use Claude Code for initial setup. The setup tool is not yet available in Claude Chat (desktop app conversations).
 
 **Alternative — environment variables** (for advanced users):
 

@@ -100,7 +100,7 @@ function maturityLabel(row: Row, currentYear: number): string {
 export function createServer(): McpServer {
   const server = new McpServer({
     name: "cellartracker",
-    version: "0.2.2",
+    version: "0.2.3",
   });
 
   // --- search-cellar ---
