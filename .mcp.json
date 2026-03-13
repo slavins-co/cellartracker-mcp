@@ -1,8 +1,8 @@
 {
   "mcpServers": {
     "cellartracker": {
-      "command": "uvx",
-      "args": ["cellartracker-mcp"]
+      "command": "npx",
+      "args": ["-y", "cellartracker-mcp"]
     }
   }
 }

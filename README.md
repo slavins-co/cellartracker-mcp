@@ -4,15 +4,7 @@ Connect Claude to your [CellarTracker](https://www.cellartracker.com/) wine cell
 
 ## Install
 
-Works with both **Claude Desktop** (mac app) and **Claude Code**.
-
-### Prerequisites
-
-Install [uv](https://docs.astral.sh/uv/) (a fast Python package manager). This is a one-time step:
-
-```bash
-brew install uv
-```
+Works with both **Claude Desktop** (mac app) and **Claude Code**. No prerequisites — Claude Desktop includes everything needed.
 
 ### Step 1: Add the marketplace
 
@@ -59,12 +51,12 @@ Try it: *"What wines should I open this week?"*
 
 | Tool | What it does |
 |------|-------------|
-| `search_cellar` | Find wines by name, color, region, varietal, location, or vintage |
-| `drinking_recommendations` | Wines to open now, sorted by drinking window urgency |
-| `cellar_stats` | Collection overview — totals and breakdowns by any dimension |
-| `purchase_history` | Spending analysis by store, date range, or wine |
-| `get_wishlist` | Your wishlist with ratings, notes, and prices |
-| `refresh_data` | Force a fresh pull (auto-refreshes every 24 hours) |
+| `search-cellar` | Find wines by name, color, region, varietal, location, or vintage |
+| `drinking-recommendations` | Wines to open now, sorted by drinking window urgency |
+| `cellar-stats` | Collection overview — totals and breakdowns by any dimension |
+| `purchase-history` | Spending analysis by store, date range, or wine |
+| `get-wishlist` | Your wishlist with ratings, notes, and prices |
+| `refresh-data` | Force a fresh pull (auto-refreshes every 24 hours) |
 
 ## Included skills
 
@@ -87,9 +79,8 @@ For contributors or anyone who wants to run from source:
 ```bash
 git clone https://github.com/slavins-co/cellartracker-mcp.git
 cd cellartracker-mcp
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -e .
+npm install
+npm run build
 
 # Set credentials
 cp .env.example .env
