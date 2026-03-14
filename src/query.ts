@@ -18,6 +18,7 @@ export function parseCsv(text: string): Row[] {
     columns: (row: string[]) => { headers = row; return row; },
     skip_empty_lines: true,
     relax_column_count: true,
+    relax_quotes: true,
     bom: true,
   });
 
