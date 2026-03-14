@@ -94,20 +94,32 @@ describe("loadEnvFile", () => {
 describe("getCredentials", () => {
   const originalEnv = { ...process.env };
   const tmpDir = path.join(os.tmpdir(), "ct-mcp-creds-" + process.pid);
+  const fakeHome = path.join(tmpDir, "fakehome");
 
   beforeEach(() => {
     // Clean env
     delete process.env.CT_USERNAME;
     delete process.env.CT_PASSWORD;
-    fs.mkdirSync(tmpDir, { recursive: true });
+    fs.mkdirSync(fakeHome, { recursive: true });
+    // Mock homedir so tests never touch real ~/.config/cellartracker-mcp
+    vi.spyOn(os, "homedir").mockReturnValue(fakeHome);
+    // Mock cwd to the temp dir (no .env by default)
+    vi.spyOn(process, "cwd").mockReturnValue(tmpDir);
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
     // Restore env
-    process.env.CT_USERNAME = originalEnv.CT_USERNAME;
-    process.env.CT_PASSWORD = originalEnv.CT_PASSWORD;
-    if (originalEnv.CT_USERNAME === undefined) delete process.env.CT_USERNAME;
-    if (originalEnv.CT_PASSWORD === undefined) delete process.env.CT_PASSWORD;
+    if (originalEnv.CT_USERNAME !== undefined) {
+      process.env.CT_USERNAME = originalEnv.CT_USERNAME;
+    } else {
+      delete process.env.CT_USERNAME;
+    }
+    if (originalEnv.CT_PASSWORD !== undefined) {
+      process.env.CT_PASSWORD = originalEnv.CT_PASSWORD;
+    } else {
+      delete process.env.CT_PASSWORD;
+    }
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
@@ -122,68 +134,34 @@ describe("getCredentials", () => {
     process.env.CT_USERNAME = "${CT_USERNAME}";
     process.env.CT_PASSWORD = "${CT_PASSWORD}";
 
-    // Write a config .env so it has something to fall back to
-    const configDir = path.join(os.homedir(), ".config", "cellartracker-mcp");
-    const configEnvPath = path.join(configDir, ".env");
-    const hadConfigEnv = fs.existsSync(configEnvPath);
-    let originalContent = "";
-    if (hadConfigEnv) {
-      originalContent = fs.readFileSync(configEnvPath, "utf-8");
-    }
-
+    // Write a config .env in the fake home so it has something to fall back to
+    const configDir = path.join(fakeHome, ".config", "cellartracker-mcp");
     fs.mkdirSync(configDir, { recursive: true });
-    fs.writeFileSync(configEnvPath, "CT_USERNAME=fileuser\nCT_PASSWORD=filepass\n");
+    fs.writeFileSync(path.join(configDir, ".env"), "CT_USERNAME=fileuser\nCT_PASSWORD=filepass\n");
 
-    try {
-      const creds = getCredentials();
-      expect(creds).toEqual({ username: "fileuser", password: "filepass" });
-    } finally {
-      // Restore
-      if (hadConfigEnv) {
-        fs.writeFileSync(configEnvPath, originalContent);
-      } else {
-        fs.unlinkSync(configEnvPath);
-      }
-    }
+    const creds = getCredentials();
+    expect(creds).toEqual({ username: "fileuser", password: "filepass" });
   });
 
   it("throws with helpful message when no credentials found", () => {
-    // Mock cwd to a temp dir with no .env, and ensure config dir has no .env
-    const configDir = path.join(os.homedir(), ".config", "cellartracker-mcp");
-    const configEnvPath = path.join(configDir, ".env");
-    const hadConfigEnv = fs.existsSync(configEnvPath);
-    let originalContent = "";
-
-    if (hadConfigEnv) {
-      originalContent = fs.readFileSync(configEnvPath, "utf-8");
-      fs.unlinkSync(configEnvPath);
-    }
-
-    const originalCwd = process.cwd;
-    process.cwd = () => tmpDir;
-
-    try {
-      expect(() => getCredentials()).toThrow("CellarTracker credentials not found");
-    } finally {
-      process.cwd = originalCwd;
-      if (hadConfigEnv) {
-        fs.writeFileSync(configEnvPath, originalContent);
-      }
-    }
+    // No env vars, no CWD .env, no config-dir .env → should throw
+    expect(() => getCredentials()).toThrow("CellarTracker credentials not found");
   });
 
   it("reads from CWD .env file", () => {
     const cwdEnvPath = path.join(tmpDir, ".env");
     fs.writeFileSync(cwdEnvPath, "CT_USERNAME=cwduser\nCT_PASSWORD=cwdpass\n");
 
-    const originalCwd = process.cwd;
-    process.cwd = () => tmpDir;
+    const creds = getCredentials();
+    expect(creds).toEqual({ username: "cwduser", password: "cwdpass" });
+  });
 
-    try {
-      const creds = getCredentials();
-      expect(creds).toEqual({ username: "cwduser", password: "cwdpass" });
-    } finally {
-      process.cwd = originalCwd;
-    }
+  it("falls back to config-dir .env when no env vars or CWD .env", () => {
+    const configDir = path.join(fakeHome, ".config", "cellartracker-mcp");
+    fs.mkdirSync(configDir, { recursive: true });
+    fs.writeFileSync(path.join(configDir, ".env"), "CT_USERNAME=cfguser\nCT_PASSWORD=cfgpass\n");
+
+    const creds = getCredentials();
+    expect(creds).toEqual({ username: "cfguser", password: "cfgpass" });
   });
 });
