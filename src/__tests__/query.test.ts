@@ -67,6 +67,14 @@ describe("parseCsv", () => {
     expect(rows[0]).toEqual({ A: "only_one", B: "", C: "" });
   });
 
+  it("handles mid-field quotes in unquoted fields (relaxed quoting)", () => {
+    const csv = 'Wine,Region\nO"Brien\'s Vineyard,Napa Valley';
+    const rows = parseCsv(csv);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].Wine).toContain("Brien");
+    expect(rows[0].Region).toBe("Napa Valley");
+  });
+
   it("handles a mix of quoted and unquoted fields", () => {
     const csv = 'Wine,Price,Notes\n"Opus One",350,"Rich, bold, complex"';
     const rows = parseCsv(csv);

@@ -3,68 +3,32 @@
  */
 
 import fs from "node:fs";
+import { parse } from "csv-parse/sync";
 
 export type Row = Record<string, string>;
 
 /**
  * Parse CSV text into an array of row objects.
- * Handles quoted fields with commas. CellarTracker CSVs have no embedded newlines.
+ * Uses csv-parse for robust handling of quoted fields, BOM, and edge cases.
  */
 export function parseCsv(text: string): Row[] {
-  const lines = text.split("\n").filter((l) => l.trim() !== "");
-  if (lines.length === 0) return [];
+  if (!text.trim()) return [];
+  let headers: string[] = [];
+  const rows: Row[] = parse(text, {
+    columns: (row: string[]) => { headers = row; return row; },
+    skip_empty_lines: true,
+    relax_column_count: true,
+    relax_quotes: true,
+    bom: true,
+  });
 
-  const headers = parseCsvLine(lines[0]);
-  const rows: Row[] = [];
-  for (let i = 1; i < lines.length; i++) {
-    const values = parseCsvLine(lines[i]);
-    const row: Row = {};
-    for (let j = 0; j < headers.length; j++) {
-      row[headers[j]] = values[j] ?? "";
+  // Fill missing fields with "" to match prior behavior
+  for (const row of rows) {
+    for (const h of headers) {
+      if (!(h in row)) row[h] = "";
     }
-    rows.push(row);
   }
   return rows;
-}
-
-/** Parse a single CSV line, handling quoted fields with commas and escaped quotes. */
-function parseCsvLine(line: string): string[] {
-  const fields: string[] = [];
-  let i = 0;
-  while (i < line.length) {
-    if (line[i] === '"') {
-      // Quoted field
-      let value = "";
-      i++; // skip opening quote
-      while (i < line.length) {
-        if (line[i] === '"') {
-          if (i + 1 < line.length && line[i + 1] === '"') {
-            value += '"';
-            i += 2;
-          } else {
-            i++; // skip closing quote
-            break;
-          }
-        } else {
-          value += line[i];
-          i++;
-        }
-      }
-      fields.push(value);
-      if (i < line.length && line[i] === ",") i++; // skip comma
-    } else {
-      // Unquoted field
-      const commaIdx = line.indexOf(",", i);
-      if (commaIdx === -1) {
-        fields.push(line.slice(i));
-        break;
-      } else {
-        fields.push(line.slice(i, commaIdx));
-        i = commaIdx + 1;
-      }
-    }
-  }
-  return fields;
 }
 
 /** Load a CSV file into an array of row objects. */
