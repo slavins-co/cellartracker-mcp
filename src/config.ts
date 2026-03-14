@@ -112,5 +112,8 @@ export function getCacheDir(): string {
     : path.join(os.homedir(), ".cache", "cellartracker-mcp", "exports");
 
   fs.mkdirSync(cacheDir, { recursive: true, mode: 0o700 });
+  if (process.platform !== "win32") {
+    fs.chmodSync(cacheDir, 0o700);
+  }
   return cacheDir;
 }

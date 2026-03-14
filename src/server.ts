@@ -643,6 +643,9 @@ export function createServer(): McpServer {
         // Write config file
         const configDir = getConfigDir();
         fs.mkdirSync(configDir, { recursive: true, mode: 0o700 });
+        if (process.platform !== "win32") {
+          fs.chmodSync(configDir, 0o700);
+        }
 
         const envPath = `${configDir}/.env`;
         fs.writeFileSync(envPath, `CT_USERNAME=${username}\nCT_PASSWORD=${password}\n`, "utf-8");
