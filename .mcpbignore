@@ -1,0 +1,34 @@
+# Source (compiled output is in dist/)
+src/
+tsconfig.json
+
+# Development
+.venv/
+.git/
+.github/
+.claude/
+.claude-plugin/
+.mcp.json
+.env
+.env.example
+.mcpbignore
+
+# Skills (not supported in Desktop Extensions)
+skills/
+
+# Tasks and docs
+tasks/
+docs/
+README.md
+LICENSE
+CHANGELOG.md
+
+# Build artifacts
+*.mcpb
+
+# Dev dependencies — not needed at runtime.
+# Run `npm ci --omit=dev` before packing to exclude these automatically.
+# These patterns catch them if a full install was used instead.
+node_modules/typescript/
+node_modules/@types/
+node_modules/@anthropic-ai/mcpb/

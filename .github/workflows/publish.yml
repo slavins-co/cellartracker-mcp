@@ -1,11 +1,11 @@
-name: Publish to npm
+name: Publish
 
 on:
   release:
     types: [published]
 
 jobs:
-  publish:
+  publish-npm:
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -21,3 +21,22 @@ jobs:
       - run: npm publish --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  desktop-extension:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm ci
+      - run: npm run build
+      - name: Re-install production deps only for smaller bundle
+        run: rm -rf node_modules && npm ci --omit=dev
+      - run: npx @anthropic-ai/mcpb pack .
+      - name: Attach .mcpb to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: "*.mcpb"

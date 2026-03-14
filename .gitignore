@@ -5,6 +5,9 @@
 node_modules/
 dist/
 
+# Desktop Extension bundles
+*.mcpb
+
 # Cache
 exports/
 

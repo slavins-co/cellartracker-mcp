@@ -4,60 +4,47 @@ Connect Claude to your [CellarTracker](https://www.cellartracker.com/) wine cell
 
 ## Install
 
-Works with both **Claude Desktop** (mac app) and **Claude Code**. No prerequisites — Claude Desktop includes everything needed.
+Choose your platform — both give you full access to all cellar tools.
 
-### Step 1: Add the marketplace
+### Claude Desktop (Chat)
 
-**Claude Desktop:** Settings > Customize > Browse plugins > **+** > Add marketplace from GitHub > enter `slavins-co/cellartracker-mcp`
+One-click install via Desktop Extension. No terminal needed.
 
-**Claude Code:**
+1. Download `cellartracker-mcp.mcpb` from the [latest release](https://github.com/slavins-co/cellartracker-mcp/releases/latest)
+2. Double-click the file to install in Claude Desktop
+3. Enter your CellarTracker username and password when prompted
+4. Start chatting — *"What wines should I open this week?"*
+
+Credentials are stored in your OS keychain (macOS Keychain / Windows Credential Manager). To update them later, go to Settings > Extensions > CellarTracker.
+
+### Claude Code (Terminal)
+
+Full experience with tools **and** skills.
+
+**Step 1:** Add the marketplace
 ```
 /plugin marketplace add slavins-co/cellartracker-mcp
 ```
 
-### Step 2: Install the plugin
-
-**Claude Desktop:** Find "CellarTracker MCP" in the plugin browser and click **Install**.
-
-**Claude Code:**
+**Step 2:** Install the plugin
 ```
 /plugin install cellartracker-mcp@cellartracker-mcp
 ```
 
-### Step 3: Connect your CellarTracker account
-
-**Easiest — just ask Claude** (recommended):
-
-After installing, open **Claude Code** and say:
-
+**Step 3:** Connect your account — just say:
 > *"Set up my CellarTracker credentials"*
 
-Claude will ask for your cellartracker.com username and password, verify them, and save them securely. You're ready to go immediately — no restart needed.
+Claude will verify and save them. No restart needed.
 
-> **Note:** Use Claude Code for initial setup. The setup tool is not yet available in Claude Chat (desktop app conversations).
-
-**Alternative — environment variables** (for advanced users):
-
-Add to your `~/.zshrc` (or `~/.bashrc`):
-
-```bash
-export CT_USERNAME=your_cellartracker_username
-export CT_PASSWORD=your_cellartracker_password
-```
-
-Then restart your terminal and relaunch Claude.
+**Alternative:** Set `CT_USERNAME` and `CT_PASSWORD` as environment variables in your shell profile.
 
 Credentials are stored only on your machine. When using the setup tool, they pass through Anthropic's servers as part of the conversation. They are sent to CellarTracker's servers for authentication.
-
-### Step 4: Try it
-
-*"What wines should I open this week?"*
 
 ## What you can do
 
 | Tool | What it does |
 |------|-------------|
-| `setup-credentials` | Connect your CellarTracker account (or update your login) |
+| `setup-credentials` | Connect your CellarTracker account (Claude Code only — Desktop handles this during install) |
 | `search-cellar` | Find wines by name, color, region, varietal, location, or vintage |
 | `drinking-recommendations` | Wines to open now, sorted by drinking window urgency |
 | `cellar-stats` | Collection overview — totals and breakdowns by any dimension |
@@ -68,6 +55,8 @@ Credentials are stored only on your machine. When using the setup tool, they pas
 | `refresh-data` | Force a fresh pull (auto-refreshes every 24 hours) |
 
 ## Included skills
+
+> **Note:** Skills are only available via the Claude Code plugin. The Desktop Extension provides tools only.
 
 **cellartracker-data** — Teaches Claude to interpret CellarTracker data: table relationships, score abbreviations, drinking windows, and query routing.
 
