@@ -14,7 +14,9 @@
     "build": "tsc",
     "dev": "tsc --watch",
     "start": "node dist/index.js",
-    "prepublishOnly": "npm run build"
+    "pack": "mcpb pack .",
+    "verify-versions": "node --input-type=module -e \"import{readFileSync}from'node:fs';const p=JSON.parse(readFileSync('./package.json','utf8'));const m=JSON.parse(readFileSync('./manifest.json','utf8'));const pl=JSON.parse(readFileSync('./.claude-plugin/plugin.json','utf8'));if(p.version!==m.version||p.version!==pl.version){console.error('Version mismatch!',{pkg:p.version,manifest:m.version,plugin:pl.version});process.exit(1)}else{console.log('Versions in sync:',p.version)}\"",
+    "prepublishOnly": "npm run verify-versions && npm run build"
   },
   "keywords": [
     "cellartracker",
@@ -40,6 +42,7 @@
     "zod": "^3.24.0"
   },
   "devDependencies": {
+    "@anthropic-ai/mcpb": "^2.1.2",
     "@types/node": "^20.0.0",
     "typescript": "^5.5.0"
   }

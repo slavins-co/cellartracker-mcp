@@ -1,0 +1,53 @@
+{
+  "manifest_version": "0.3",
+  "name": "cellartracker-mcp",
+  "display_name": "CellarTracker",
+  "version": "0.2.4",
+  "description": "Query your CellarTracker wine cellar — inventory, drinking recommendations, purchase history, tasting notes, and wishlist.",
+  "author": {
+    "name": "Brad Slavin",
+    "url": "https://github.com/slavins-co"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/slavins-co/cellartracker-mcp"
+  },
+  "license": "MIT",
+  "server": {
+    "type": "node",
+    "entry_point": "dist/index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": ["${__dirname}/dist/index.js"],
+      "env": {
+        "CT_USERNAME": "${user_config.ct_username}",
+        "CT_PASSWORD": "${user_config.ct_password}"
+      }
+    }
+  },
+  "tools": [
+    { "name": "search-cellar", "description": "Search your wine cellar by name, color, region, varietal, location, or vintage range." },
+    { "name": "drinking-recommendations", "description": "Get wine drinking recommendations sorted by urgency." },
+    { "name": "cellar-stats", "description": "Get cellar statistics: total bottles, value, unique wines, and optional breakdowns." },
+    { "name": "purchase-history", "description": "Search purchase history with spending summary." },
+    { "name": "get-wishlist", "description": "View your CellarTracker wishlist wines." },
+    { "name": "consumption-history", "description": "Search your consumption history — wines you've opened and drunk." },
+    { "name": "tasting-notes", "description": "Search your tasting notes and reviews." },
+    { "name": "refresh-data", "description": "Force refresh all CellarTracker data from the server." }
+  ],
+  "user_config": {
+    "ct_username": {
+      "type": "string",
+      "title": "CellarTracker Username",
+      "description": "Your CellarTracker username",
+      "required": true
+    },
+    "ct_password": {
+      "type": "string",
+      "title": "CellarTracker Password",
+      "description": "Your CellarTracker password",
+      "required": true,
+      "sensitive": true
+    }
+  }
+}

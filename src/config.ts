@@ -7,7 +7,7 @@ import os from "node:os";
 import path from "node:path";
 
 /** Detect unresolved MCP client template strings like "${CT_USERNAME}". */
-function looksLikeTemplate(value: string): boolean {
+export function looksLikeTemplate(value: string): boolean {
   return /^\$\{.+\}$/.test(value);
 }
 

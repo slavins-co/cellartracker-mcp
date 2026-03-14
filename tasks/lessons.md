@@ -20,3 +20,12 @@
 
 ## CellarTracker Date Format
 - CellarTracker CSV exports use M/D/YYYY date format (e.g., `3/1/2026`). Lexicographic comparison on this format is wrong — `3/1` sorts after `12/31`. Always normalize to YYYY-MM-DD via `toIsoDate()` before any date comparison, filtering, or sorting. This affected `spendSummary()` (pre-existing bug) and the new consumption-history/tasting-notes tools. (PR #10)
+
+## Desktop Extension (.mcpb) Manifest Spec
+- `manifest_version` is a string (`"0.3"`), not a number. `author` is an object `{"name": "..."}`, not a string. Server config uses `type`/`entry_point`/`mcp_config` — not bare `command`/`args`. Sensitive fields use `"sensitive": true`, not `"secret": true`. Env vars reference user config via `${user_config.key}` templates. (PR #13)
+
+## Version Sync (Three Files)
+- Three files now carry the version: `package.json`, `.claude-plugin/plugin.json`, and `manifest.json`. The `verify-versions` script in `prepublishOnly` catches mismatches before publish. All three must be updated on every version bump. (PR #13)
+
+## .mcpb Bundle Size
+- `mcpb pack` includes all of `node_modules` by default. Use `.mcpbignore` to exclude dev artifacts and `npm ci --omit=dev` in CI before packing to keep bundle small. Without this, the bundle ballooned from 3MB to 31MB. (PR #13)
