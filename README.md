@@ -9,7 +9,7 @@ Two install methods cover different Claude Desktop modes. You may need one or bo
 | | Desktop Extension (.mcpb) | Claude Code Plugin |
 |---|---|---|
 | **Works in** | Chat, Cowork | Cowork, Code |
-| **Tools** | 8 cellar tools | All 9 tools |
+| **Tools** | 8 cellar tools | All 9 tools (includes `setup-credentials`) |
 | **Skills** | No | Yes |
 | **Setup** | One-click download | Marketplace or CLI |
 | **Credentials** | Prompted on install, stored in OS keychain | Run `setup-credentials` after install |
