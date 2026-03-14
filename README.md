@@ -4,18 +4,28 @@ Connect Claude to your [CellarTracker](https://www.cellartracker.com/) wine cell
 
 ## Install
 
-Three ways to install, depending on how you use Claude:
+Two install methods cover different Claude Desktop modes. You may need one or both:
 
-| | Desktop (Chat) | Desktop (Claude Code) | Terminal (Claude Code) |
-|---|---|---|---|
-| **Interface** | Chat conversations | Integrated terminal | Standalone terminal |
-| **Tools** | All 8 cellar tools | All 9 tools | All 9 tools |
-| **Skills** | No | Yes | Yes |
-| **Setup** | One-click | GUI + chat | CLI commands |
+| | Desktop Extension (.mcpb) | Claude Code Plugin |
+|---|---|---|
+| **Works in** | Chat, Cowork | Cowork, Code |
+| **Tools** | 8 cellar tools | All 9 tools |
+| **Skills** | No | Yes |
+| **Setup** | One-click download | Marketplace or CLI |
+| **Credentials** | Prompted on install, stored in OS keychain | Run `setup-credentials` after install |
 
-### Desktop — Chat mode
+**Which do I need?**
 
-One-click install via Desktop Extension. No terminal needed.
+- **Chat only** → Desktop Extension
+- **Code only** → Claude Code Plugin
+- **Cowork only** → Either works (plugin adds skills)
+- **Full coverage** → Install both — no conflicts
+
+Installing both is safe. The extension covers Chat; the plugin covers Cowork and Code. In Cowork, both are accessible without conflict.
+
+### Desktop Extension (Chat & Cowork)
+
+One-click install. No terminal needed.
 
 1. Download `cellartracker-mcp.mcpb` from the [latest release](https://github.com/slavins-co/cellartracker-mcp/releases/latest)
 2. Double-click the file to install in Claude Desktop
@@ -24,17 +34,17 @@ One-click install via Desktop Extension. No terminal needed.
 
 Credentials are stored in your OS keychain (macOS Keychain / Windows Credential Manager). To update them later, go to Settings > Extensions > CellarTracker.
 
-### Desktop — Claude Code mode
+### Claude Code Plugin (Cowork & Code)
 
-Full experience with tools **and** skills, inside the Claude Desktop app.
+Full experience with tools **and** skills.
 
-1. Settings > Customize > Browse plugins > **+** > Add marketplace from GitHub > enter `slavins-co/cellartracker-mcp`
+#### Via Desktop app
+
+1. Open the Code tab > Customize > Browse plugins > **+** > Add marketplace from GitHub > enter `slavins-co/cellartracker-mcp`
 2. Find "CellarTracker MCP" in the plugin browser and click **Install**
-3. Open Claude Code and say: *"Set up my CellarTracker credentials"*
+3. **Set up credentials immediately** — say: *"Set up my CellarTracker credentials"*
 
-### Terminal — Claude Code
-
-Full experience with tools **and** skills, from a standalone terminal.
+#### Via terminal
 
 **Step 1:** Add the marketplace
 ```
@@ -46,10 +56,10 @@ Full experience with tools **and** skills, from a standalone terminal.
 /plugin install cellartracker-mcp@cellartracker-mcp
 ```
 
-**Step 3:** Connect your account — just say:
+**Step 3:** Set up credentials immediately — say:
 > *"Set up my CellarTracker credentials"*
 
-Claude will verify and save them. No restart needed.
+Claude will verify and save them. No restart needed. Without credentials, tools will return errors and skills won't have data to work with.
 
 **Alternative:** Set `CT_USERNAME` and `CT_PASSWORD` as environment variables in your shell profile.
 
@@ -59,7 +69,7 @@ Credentials are stored only on your machine. When using the setup tool, they pas
 
 | Tool | What it does |
 |------|-------------|
-| `setup-credentials` | Connect your CellarTracker account (Claude Code only — Desktop chat handles this during install) |
+| `setup-credentials` | Connect your CellarTracker account (Claude Code plugin only — Desktop Extension handles credentials during install) |
 | `search-cellar` | Find wines by name, color, region, varietal, location, or vintage |
 | `drinking-recommendations` | Wines to open now, sorted by drinking window urgency |
 | `cellar-stats` | Collection overview — totals and breakdowns by any dimension |
@@ -71,7 +81,7 @@ Credentials are stored only on your machine. When using the setup tool, they pas
 
 ## Included skills
 
-> **Note:** Skills are only available via the Claude Code plugin. The Desktop Extension provides tools only.
+> **Note:** Skills are available in Cowork and Code modes via the Claude Code plugin. Chat mode (Desktop Extension) provides tools only.
 
 **cellartracker-data** — Teaches Claude to interpret CellarTracker data: table relationships, score abbreviations, drinking windows, and query routing.
 
