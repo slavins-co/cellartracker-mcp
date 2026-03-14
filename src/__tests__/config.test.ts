@@ -92,6 +92,25 @@ describe("loadEnvFile", () => {
     const env = loadEnvFile(envPath);
     expect(env.KEY).toBe('pass"word');
   });
+
+  it("does not unescape backslash-quote in single-quoted values", () => {
+    fs.writeFileSync(envPath, "KEY='pass\\\"word'\n");
+    const env = loadEnvFile(envPath);
+    expect(env.KEY).toBe('pass\\"word');
+  });
+
+  it("unescapes escaped backslashes in double-quoted values", () => {
+    fs.writeFileSync(envPath, 'KEY="pass\\\\word"\n');
+    const env = loadEnvFile(envPath);
+    expect(env.KEY).toBe("pass\\word");
+  });
+
+  it("round-trips backslash-quote through escape/unescape", () => {
+    // Simulates what setup-credentials writes for a password containing \"
+    fs.writeFileSync(envPath, 'KEY="pass\\\\\\"word"\n');
+    const env = loadEnvFile(envPath);
+    expect(env.KEY).toBe('pass\\"word');
+  });
 });
 
 // ---------------------------------------------------------------------------

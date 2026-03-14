@@ -659,9 +659,9 @@ export function createServer(): McpServer {
           fs.chmodSync(configDir, 0o700);
         }
 
-        // Escape embedded double quotes and write quoted values
-        const safeUser = username.replace(/"/g, '\\"');
-        const safePass = password.replace(/"/g, '\\"');
+        // Escape backslashes then double quotes for quoted .env values
+        const safeUser = username.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+        const safePass = password.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
         const envPath = `${configDir}/.env`;
         fs.writeFileSync(envPath, `CT_USERNAME="${safeUser}"\nCT_PASSWORD="${safePass}"\n`, "utf-8");
         if (process.platform !== "win32") {
