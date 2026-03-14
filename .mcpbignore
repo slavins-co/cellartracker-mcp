@@ -1,24 +1,24 @@
 # Source (compiled output is in dist/)
-src/
+/src/
 tsconfig.json
 
 # Development
-.venv/
-.git/
-.github/
-.claude/
-.claude-plugin/
+/.venv/
+/.git/
+/.github/
+/.claude/
+/.claude-plugin/
 .mcp.json
 .env
 .env.example
 .mcpbignore
 
 # Skills (not supported in Desktop Extensions)
-skills/
+/skills/
 
 # Tasks and docs
-tasks/
-docs/
+/tasks/
+/docs/
 README.md
 LICENSE
 CHANGELOG.md
