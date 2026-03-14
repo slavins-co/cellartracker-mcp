@@ -642,7 +642,7 @@ export function createServer(): McpServer {
 
         // Write config file
         const configDir = getConfigDir();
-        fs.mkdirSync(configDir, { recursive: true });
+        fs.mkdirSync(configDir, { recursive: true, mode: 0o700 });
         if (process.platform !== "win32") {
           fs.chmodSync(configDir, 0o700);
         }
