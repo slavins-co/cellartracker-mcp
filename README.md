@@ -4,9 +4,16 @@ Connect Claude to your [CellarTracker](https://www.cellartracker.com/) wine cell
 
 ## Install
 
-Choose your platform — both give you full access to all cellar tools.
+Three ways to install, depending on how you use Claude:
 
-### Claude Desktop (Chat)
+| | Desktop (Chat) | Desktop (Claude Code) | Terminal (Claude Code) |
+|---|---|---|---|
+| **Interface** | Chat conversations | Integrated terminal | Standalone terminal |
+| **Tools** | All 8 cellar tools | All 9 tools | All 9 tools |
+| **Skills** | No | Yes | Yes |
+| **Setup** | One-click | GUI + chat | CLI commands |
+
+### Desktop — Chat mode
 
 One-click install via Desktop Extension. No terminal needed.
 
@@ -17,9 +24,17 @@ One-click install via Desktop Extension. No terminal needed.
 
 Credentials are stored in your OS keychain (macOS Keychain / Windows Credential Manager). To update them later, go to Settings > Extensions > CellarTracker.
 
-### Claude Code (Terminal)
+### Desktop — Claude Code mode
 
-Full experience with tools **and** skills.
+Full experience with tools **and** skills, inside the Claude Desktop app.
+
+1. Settings > Customize > Browse plugins > **+** > Add marketplace from GitHub > enter `slavins-co/cellartracker-mcp`
+2. Find "CellarTracker MCP" in the plugin browser and click **Install**
+3. Open Claude Code and say: *"Set up my CellarTracker credentials"*
+
+### Terminal — Claude Code
+
+Full experience with tools **and** skills, from a standalone terminal.
 
 **Step 1:** Add the marketplace
 ```
@@ -44,7 +59,7 @@ Credentials are stored only on your machine. When using the setup tool, they pas
 
 | Tool | What it does |
 |------|-------------|
-| `setup-credentials` | Connect your CellarTracker account (Claude Code only — Desktop handles this during install) |
+| `setup-credentials` | Connect your CellarTracker account (Claude Code only — Desktop chat handles this during install) |
 | `search-cellar` | Find wines by name, color, region, varietal, location, or vintage |
 | `drinking-recommendations` | Wines to open now, sorted by drinking window urgency |
 | `cellar-stats` | Collection overview — totals and breakdowns by any dimension |
