@@ -32,7 +32,7 @@ export function loadEnvFile(filePath: string): Record<string, string> {
       value[0] === value[value.length - 1] &&
       (value[0] === '"' || value[0] === "'")
     ) {
-      value = value.slice(1, -1);
+      value = value.slice(1, -1).replace(/\\"/g, '"');
     }
     env[key] = value;
   }

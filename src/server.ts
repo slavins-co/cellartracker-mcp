@@ -629,12 +629,24 @@ export function createServer(): McpServer {
         }
 
         // Reject values that would corrupt the .env file
-        if (/[\r\n]/.test(username) || /[\r\n]/.test(password)) {
+        if (/[\r\n\0]/.test(username) || /[\r\n\0]/.test(password)) {
           return {
             content: [
               {
                 type: "text" as const,
-                text: "Username and password must not contain newline characters.",
+                text: "Credentials must not contain newline or null characters.",
+              },
+            ],
+          };
+        }
+
+        // Length limit
+        if (username.length > 256 || password.length > 256) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: "Credentials must be 256 characters or fewer.",
               },
             ],
           };
@@ -647,8 +659,11 @@ export function createServer(): McpServer {
           fs.chmodSync(configDir, 0o700);
         }
 
+        // Escape embedded double quotes and write quoted values
+        const safeUser = username.replace(/"/g, '\\"');
+        const safePass = password.replace(/"/g, '\\"');
         const envPath = `${configDir}/.env`;
-        fs.writeFileSync(envPath, `CT_USERNAME=${username}\nCT_PASSWORD=${password}\n`, "utf-8");
+        fs.writeFileSync(envPath, `CT_USERNAME="${safeUser}"\nCT_PASSWORD="${safePass}"\n`, "utf-8");
         if (process.platform !== "win32") {
           fs.chmodSync(envPath, 0o600);
         }
