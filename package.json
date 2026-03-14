@@ -16,7 +16,7 @@
     "dev": "tsc --watch",
     "start": "node dist/index.js",
     "pack": "mcpb pack .",
-    "verify-versions": "node --input-type=module -e \"import{readFileSync}from'node:fs';const p=JSON.parse(readFileSync('./package.json','utf8'));const m=JSON.parse(readFileSync('./manifest.json','utf8'));const pl=JSON.parse(readFileSync('./.claude-plugin/plugin.json','utf8'));if(p.version!==m.version||p.version!==pl.version){console.error('Version mismatch!',{pkg:p.version,manifest:m.version,plugin:pl.version});process.exit(1)}else{console.log('Versions in sync:',p.version)}\"",
+    "verify-versions": "node --input-type=module -e \"import{readFileSync}from'node:fs';const p=JSON.parse(readFileSync('./package.json','utf8'));const m=JSON.parse(readFileSync('./manifest.json','utf8'));const pl=JSON.parse(readFileSync('./.claude-plugin/plugin.json','utf8'));const mp=JSON.parse(readFileSync('./.claude-plugin/marketplace.json','utf8'));const mpv=mp.plugins[0].version;if(p.version!==m.version||p.version!==pl.version||p.version!==mpv){console.error('Version mismatch!',{pkg:p.version,manifest:m.version,plugin:pl.version,marketplace:mpv});process.exit(1)}else{console.log('Versions in sync:',p.version)}\"",
     "prepublishOnly": "npm run verify-versions && npm run build"
   },
   "keywords": [
