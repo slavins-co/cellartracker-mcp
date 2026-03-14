@@ -86,6 +86,12 @@ describe("loadEnvFile", () => {
     const env = loadEnvFile(envPath);
     expect(env).toEqual({ KEY: "value" });
   });
+
+  it("unescapes backslash-escaped double quotes inside quoted values", () => {
+    fs.writeFileSync(envPath, 'KEY="pass\\"word"\n');
+    const env = loadEnvFile(envPath);
+    expect(env.KEY).toBe('pass"word');
+  });
 });
 
 // ---------------------------------------------------------------------------
