@@ -11,6 +11,7 @@
     "skills"
   ],
   "scripts": {
+    "test": "vitest run",
     "build": "tsc",
     "dev": "tsc --watch",
     "start": "node dist/index.js",
@@ -44,6 +45,7 @@
   "devDependencies": {
     "@anthropic-ai/mcpb": "^2.1.2",
     "@types/node": "^20.0.0",
-    "typescript": "^5.5.0"
+    "typescript": "^5.5.0",
+    "vitest": "^4.1.0"
   }
 }

@@ -17,6 +17,7 @@ jobs:
           node-version: "20"
           registry-url: "https://registry.npmjs.org"
       - run: npm ci
+      - run: npm test
       - run: npm run build
       - run: npm publish --provenance --access public
         env:
@@ -32,6 +33,7 @@ jobs:
         with:
           node-version: "20"
       - run: npm ci
+      - run: npm test
       - run: npm run build
       - name: Re-install production deps only for smaller bundle
         run: rm -rf node_modules && npm ci --omit=dev
