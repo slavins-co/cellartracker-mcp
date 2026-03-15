@@ -10,6 +10,12 @@ const BASE_URL = "https://www.cellartracker.com/xlquery.asp";
 const AUTH_MESSAGE =
   "CellarTracker authentication failed. Verify your CT_USERNAME and CT_PASSWORD are correct.";
 
+/** Extract charset from a Content-Type header value, defaulting to windows-1252. */
+export function parseCharset(contentType: string | null): string {
+  const match = contentType?.match(/charset=([^\s;]+)/i);
+  return match?.[1] ?? "windows-1252";
+}
+
 /** Typed error for authentication failures — passes through the credential-stripping catch. */
 export class AuthError extends Error {
   constructor() {
@@ -34,7 +40,7 @@ export const TABLES: Record<
 
 /**
  * Fetch a single table from CellarTracker as CSV text.
- * Uses windows-1252 decoding (CellarTracker default) and normalizes line endings.
+ * Decodes using the charset from the Content-Type header, falling back to windows-1252.
  */
 export async function fetchTable(
   user: string,
@@ -50,6 +56,7 @@ export async function fetchTable(
   const url = `${BASE_URL}?${params.toString()}`;
 
   let buffer: ArrayBuffer;
+  let contentType: string | null = null;
   try {
     const response = await fetch(url, {
       signal: AbortSignal.timeout(60_000),
@@ -61,6 +68,7 @@ export async function fetchTable(
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
     }
+    contentType = response.headers.get("content-type");
     buffer = await response.arrayBuffer();
   } catch (e) {
     // Preserve typed auth errors; strip all others to avoid leaking
@@ -75,7 +83,8 @@ export async function fetchTable(
     );
   }
 
-  const text = new TextDecoder("windows-1252").decode(buffer);
+  const encoding = parseCharset(contentType);
+  const text = new TextDecoder(encoding).decode(buffer);
 
   // CellarTracker returns HTML (not CSV) when credentials are wrong, with HTTP 200.
   if (text.trimStart().startsWith("<")) {
