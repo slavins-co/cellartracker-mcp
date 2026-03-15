@@ -95,6 +95,30 @@ CellarTracker has no official API. This server uses their CSV export endpoint, w
 
 The server can only access **your** data — inventory, purchases, notes, and wishlist. It cannot search CellarTracker's full wine database.
 
+## Security & credentials
+
+### CellarTracker API limitations
+
+CellarTracker has no OAuth, API keys, or scoped tokens. Authentication requires your actual account username and password, sent as URL query parameters over HTTPS. While encrypted on the wire, query parameters are routinely logged in server-side access logs on CellarTracker's infrastructure. There is no way to create read-only or limited-access credentials — this MCP only performs read operations, but it authenticates with your full account.
+
+### How this server protects your credentials
+
+| Protection | Details |
+|---|---|
+| **File permissions** | Config directory `0700`, `.env` file `0600` — only your OS user can read |
+| **Error stripping** | Network errors are caught and re-thrown without the URL, which contains credentials |
+| **No logging** | Credentials never appear in stdout, stderr, or error messages |
+| **OS keychain** | Desktop Extension (`.mcpb`) stores credentials in macOS Keychain / Windows Credential Manager |
+| **Env var support** | Set `CT_USERNAME` / `CT_PASSWORD` environment variables to avoid storing credentials on disk |
+
+The Claude Code plugin stores credentials as plaintext in `~/.config/cellartracker-mcp/.env`. We evaluated OS keychain integration ([#22](https://github.com/slavins-co/cellartracker-mcp/issues/22)) and decided against it — the native dependency cost (`node-gyp` / `keytar`) outweighs the security benefit for wine cellar data, and the Desktop Extension path already uses the OS keychain.
+
+### Recommendations
+
+- **Use a unique password** for CellarTracker — do not reuse a password from other services.
+- **Prefer environment variables** over the `setup-credentials` tool if you want to avoid persisting credentials to disk.
+- **Pin to a specific version** in your MCP config (e.g., `cellartracker-mcp@0.2.6`) rather than relying on `@latest`.
+
 ## Development
 
 For contributors or anyone who wants to run from source:
