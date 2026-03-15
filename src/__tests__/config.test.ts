@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
-import { looksLikeTemplate, loadEnvFile, getCredentials } from "../config.js";
+import { looksLikeTemplate, loadEnvFile, getCredentials, clearUserData } from "../config.js";
 
 // ---------------------------------------------------------------------------
 // looksLikeTemplate
@@ -188,5 +188,75 @@ describe("getCredentials", () => {
 
     const creds = getCredentials();
     expect(creds).toEqual({ username: "cfguser", password: "cfgpass" });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// clearUserData
+// ---------------------------------------------------------------------------
+describe("clearUserData", () => {
+  const tmpDir = path.join(os.tmpdir(), "ct-mcp-clear-" + process.pid);
+  const fakeHome = path.join(tmpDir, "fakehome");
+
+  beforeEach(() => {
+    fs.mkdirSync(fakeHome, { recursive: true });
+    vi.spyOn(os, "homedir").mockReturnValue(fakeHome);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("deletes credentials file and reports it", () => {
+    const configDir = path.join(fakeHome, ".config", "cellartracker-mcp");
+    fs.mkdirSync(configDir, { recursive: true });
+    fs.writeFileSync(path.join(configDir, ".env"), "CT_USERNAME=u\nCT_PASSWORD=p\n");
+
+    const result = clearUserData({ credentials: true, cache: false });
+    expect(result.credentials).toBe("deleted");
+    expect(fs.existsSync(path.join(configDir, ".env"))).toBe(false);
+  });
+
+  it("reports 'not_found' when no credentials file exists", () => {
+    const result = clearUserData({ credentials: true, cache: false });
+    expect(result.credentials).toBe("not_found");
+  });
+
+  it("deletes cache directory contents and reports count", () => {
+    const cacheDir = path.join(fakeHome, ".cache", "cellartracker-mcp", "exports");
+    fs.mkdirSync(cacheDir, { recursive: true });
+    fs.writeFileSync(path.join(cacheDir, "List_latest.csv"), "data");
+    fs.writeFileSync(path.join(cacheDir, "Notes_latest.csv"), "data");
+
+    const result = clearUserData({ credentials: false, cache: true });
+    expect(result.cacheFilesRemoved).toBe(2);
+    expect(fs.readdirSync(cacheDir)).toHaveLength(0);
+  });
+
+  it("reports 0 cache files when cache dir is empty", () => {
+    const cacheDir = path.join(fakeHome, ".cache", "cellartracker-mcp", "exports");
+    fs.mkdirSync(cacheDir, { recursive: true });
+
+    const result = clearUserData({ credentials: false, cache: true });
+    expect(result.cacheFilesRemoved).toBe(0);
+  });
+
+  it("reports 0 cache files when cache dir does not exist", () => {
+    const result = clearUserData({ credentials: false, cache: true });
+    expect(result.cacheFilesRemoved).toBe(0);
+  });
+
+  it("deletes both credentials and cache when both requested", () => {
+    const configDir = path.join(fakeHome, ".config", "cellartracker-mcp");
+    const cacheDir = path.join(fakeHome, ".cache", "cellartracker-mcp", "exports");
+    fs.mkdirSync(configDir, { recursive: true });
+    fs.mkdirSync(cacheDir, { recursive: true });
+    fs.writeFileSync(path.join(configDir, ".env"), "CT_USERNAME=u\nCT_PASSWORD=p\n");
+    fs.writeFileSync(path.join(cacheDir, "List_latest.csv"), "data");
+
+    const result = clearUserData({ credentials: true, cache: true });
+    expect(result.credentials).toBe("deleted");
+    expect(result.cacheFilesRemoved).toBe(1);
   });
 });

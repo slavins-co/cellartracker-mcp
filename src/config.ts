@@ -103,6 +103,50 @@ export function getCredentials(): { username: string; password: string } {
   );
 }
 
+/** Result of clearing user data. */
+export interface ClearResult {
+  credentials: "deleted" | "not_found";
+  cacheFilesRemoved: number;
+}
+
+/**
+ * Delete stored credentials and/or cached CSV exports.
+ * Safe to call when files don't exist — reports what was found.
+ */
+export function clearUserData(opts: { credentials: boolean; cache: boolean }): ClearResult {
+  const result: ClearResult = { credentials: "not_found", cacheFilesRemoved: 0 };
+
+  if (opts.credentials) {
+    const envPath = path.join(getConfigDir(), ".env");
+    try {
+      fs.unlinkSync(envPath);
+      result.credentials = "deleted";
+    } catch {
+      result.credentials = "not_found";
+    }
+  }
+
+  if (opts.cache) {
+    const cacheDir = path.join(os.homedir(), ".cache", "cellartracker-mcp", "exports");
+    let files: string[];
+    try {
+      files = fs.readdirSync(cacheDir);
+    } catch {
+      files = [];
+    }
+    for (const f of files) {
+      try {
+        fs.unlinkSync(path.join(cacheDir, f));
+        result.cacheFilesRemoved++;
+      } catch {
+        // Ignore individual removal errors
+      }
+    }
+  }
+
+  return result;
+}
+
 /**
  * Return the cache directory for CSV exports.
  *
