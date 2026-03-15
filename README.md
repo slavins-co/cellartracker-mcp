@@ -1,14 +1,14 @@
 # CellarTracker MCP
 
-Connect Claude to your [CellarTracker](https://www.cellartracker.com/) wine cellar. Query your inventory, get drinking recommendations, analyze purchases, and evaluate new wines — all through natural conversation.
+Connect Claude to your [CellarTracker](https://www.cellartracker.com/) wine cellar. Query your inventory, get drinking recommendations, and analyze purchases and drinking history, all through natural conversation. No need to refresh your inventory, or share your tasting notes. Claude pulls them directly from your CellarTracker account.
 
 ## Install
 
-Two install methods cover different Claude Desktop modes. You may need one or both:
+Two install methods for different Claude interfaces. You may need one or both:
 
 | | Desktop Extension (.mcpb) | Claude Code Plugin |
 |---|---|---|
-| **Works in** | Chat, Cowork | Cowork, Code |
+| **Works in** | Chat (Desktop), Cowork | Cowork, Code |
 | **Tools** | 8 cellar tools | All 10 tools (includes `setup-credentials` and `clear-user-data`) |
 | **Skills** | No | Yes |
 | **Setup** | One-click download | Marketplace or CLI |
@@ -16,12 +16,12 @@ Two install methods cover different Claude Desktop modes. You may need one or bo
 
 **Which do I need?**
 
-- **Chat only** → Desktop Extension
+- **Chat (Desktop) only** → Desktop Extension
 - **Code only** → Claude Code Plugin
 - **Cowork only** → Either works (plugin adds skills)
-- **Full coverage** → Install both — no conflicts
+- **Full coverage** → Install both
 
-Installing both is safe. The extension covers Chat; the plugin covers Cowork and Code. In Cowork, both are accessible without conflict.
+Installing both is safe. The extension covers Chat (Desktop); the plugin covers Cowork and Code. In Cowork, both are accessible without conflict. Note, there is no coverage for claude.ai web chat sessions.
 
 ### Desktop Extension (Chat & Cowork)
 
@@ -30,9 +30,9 @@ One-click install. No terminal needed.
 1. Download `cellartracker-mcp.mcpb` from the [latest release](https://github.com/slavins-co/cellartracker-mcp/releases/latest)
 2. Double-click the file to install in Claude Desktop
 3. Enter your CellarTracker username and password when prompted
-4. Start chatting — *"What wines should I open this week?"*
+4. Start chatting (e.g. *"What wines should I open this month?"*)
 
-Credentials are stored in your OS keychain (macOS Keychain / Windows Credential Manager). To update them later, go to Settings > Extensions > CellarTracker.
+Credentials are stored in your OS keychain (macOS Keychain / Windows Credential Manager). To update them later, go to Customize > Connectors > CellarTracker.
 
 ### Claude Code Plugin (Cowork & Code)
 
@@ -40,9 +40,9 @@ Full experience with tools **and** skills.
 
 #### Via Desktop app
 
-1. Open the Code tab > Customize > Browse plugins > **+** > Add marketplace from GitHub > enter `slavins-co/cellartracker-mcp`
+1. Open the Code tab > Customize > Browse plugins > Personal > **+** > Add marketplace from GitHub > enter `slavins-co/cellartracker-mcp`
 2. Find "CellarTracker MCP" in the plugin browser and click **Install**
-3. **Set up credentials immediately** — say: *"Set up my CellarTracker credentials"*
+3. **Set up credentials immediately**: In a new Code or Cowork session, say *"Set up my CellarTracker credentials"*
 
 #### Via terminal
 
@@ -100,7 +100,7 @@ The server can only access **your** data — inventory, purchases, notes, and wi
 
 ### CellarTracker API limitations
 
-CellarTracker has no OAuth, API keys, or scoped tokens. Authentication requires your actual account username and password, sent as URL query parameters over HTTPS. While encrypted on the wire, query parameters are routinely logged in server-side access logs on CellarTracker's infrastructure. There is no way to create read-only or limited-access credentials — this MCP only performs read operations, but it authenticates with your full account.
+CellarTracker has no OAuth, API keys, or scoped tokens. Authentication requires your actual account username and password, sent as URL query parameters over HTTPS. While encrypted on the wire, query parameters are routinely logged in server-side access logs on CellarTracker's infrastructure. There is no way to create read-only or limited-access credentials, therefore, this MCP only performs read operations, but it authenticates with your full account.
 
 ### How this server protects your credentials
 
@@ -112,13 +112,13 @@ CellarTracker has no OAuth, API keys, or scoped tokens. Authentication requires 
 | **OS keychain** | Desktop Extension (`.mcpb`) stores credentials in macOS Keychain / Windows Credential Manager |
 | **Env var support** | Set `CT_USERNAME` / `CT_PASSWORD` environment variables to avoid storing credentials on disk |
 
-The Claude Code plugin stores credentials as plaintext in `~/.config/cellartracker-mcp/.env`. We evaluated OS keychain integration ([#22](https://github.com/slavins-co/cellartracker-mcp/issues/22)) and decided against it — the native dependency cost (`node-gyp` / `keytar`) outweighs the security benefit for wine cellar data, and the Desktop Extension path already uses the OS keychain.
+The Claude Code plugin stores credentials as plaintext in `~/.config/cellartracker-mcp/.env`. We evaluated OS keychain integration ([#22](https://github.com/slavins-co/cellartracker-mcp/issues/22)) and decided against it. The native dependency cost (`node-gyp` / `keytar`) outweighs the security benefit for wine cellar data, and the Desktop Extension path already uses the OS keychain.
 
 ### Recommendations
 
-- **Use a unique password** for CellarTracker — do not reuse a password from other services.
+- **Use a unique password** for CellarTracker. Do not reuse a password from other services.
 - **Prefer environment variables** over the `setup-credentials` tool if you want to avoid persisting credentials to disk.
-- **Pin to a specific version** in your MCP config (e.g., `cellartracker-mcp@0.2.6`) rather than relying on `@latest`.
+- **Pin to a specific version** in your MCP config (e.g., `cellartracker-mcp@0.3.0`) rather than relying on `@latest`.
 
 ## Development
 
@@ -137,6 +137,10 @@ cp .env.example .env
 # Test as Claude Code plugin
 claude --plugin-dir .
 ```
+
+## AI Disclosure
+
+This project was developed with AI assistance.
 
 ## License
 
