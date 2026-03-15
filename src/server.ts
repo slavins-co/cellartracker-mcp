@@ -6,6 +6,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
 import fs from "node:fs";
+import { createRequire } from "node:module";
 
 import { clearUserData, getCacheDir, getConfigDir, getCredentials, looksLikeTemplate } from "./config.js";
 import { AuthError, TABLES, ensureFresh, exportAll, fetchTable } from "./exporter.js";
@@ -97,11 +98,14 @@ function maturityLabel(row: Row, currentYear: number): string {
   return "No maturity data";
 }
 
+const require = createRequire(import.meta.url);
+const { version } = require("../package.json") as { version: string };
+
 /** Create and configure the MCP server with all 10 tools. */
 export function createServer(): McpServer {
   const server = new McpServer({
     name: "cellartracker",
-    version: "0.2.6",
+    version,
   });
 
   // --- search-cellar ---
@@ -600,6 +604,29 @@ export function createServer(): McpServer {
         password: z.string().describe("Your CellarTracker password"),
       },
       async ({ username, password }) => {
+        // Validate locally before sending anything to CellarTracker
+        if (/[\r\n\0]/.test(username) || /[\r\n\0]/.test(password)) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: "Credentials must not contain newline or null characters.",
+              },
+            ],
+          };
+        }
+
+        if (username.length > 256 || password.length > 256) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: "Credentials must be 256 characters or fewer.",
+              },
+            ],
+          };
+        }
+
         // Validate credentials by fetching a small table
         try {
           await fetchTable(username, password, TABLES.List.params);
@@ -623,30 +650,6 @@ export function createServer(): McpServer {
                 text:
                   "Could not reach CellarTracker to verify your credentials. " +
                   "Check your network connection and try again.",
-              },
-            ],
-          };
-        }
-
-        // Reject values that would corrupt the .env file
-        if (/[\r\n\0]/.test(username) || /[\r\n\0]/.test(password)) {
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: "Credentials must not contain newline or null characters.",
-              },
-            ],
-          };
-        }
-
-        // Length limit
-        if (username.length > 256 || password.length > 256) {
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: "Credentials must be 256 characters or fewer.",
               },
             ],
           };

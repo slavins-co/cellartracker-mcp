@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  aggregate,
   parseCsv,
   toIsoDate,
   drinkingPriority,
@@ -81,6 +82,41 @@ describe("parseCsv", () => {
     expect(rows[0].Wine).toBe("Opus One");
     expect(rows[0].Price).toBe("350");
     expect(rows[0].Notes).toBe("Rich, bold, complex");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// aggregate
+// ---------------------------------------------------------------------------
+describe("aggregate", () => {
+  it("counts by Quantity field, not row count", () => {
+    const rows: Row[] = [
+      { Color: "Red", Quantity: "6" },
+      { Color: "Red", Quantity: "3" },
+      { Color: "White", Quantity: "2" },
+    ];
+    const result = aggregate(rows, "Color");
+    expect(result.Red).toBe(9);    // 6 + 3, not 2 rows
+    expect(result.White).toBe(2);  // 2, not 1 row
+  });
+
+  it("defaults to 1 when Quantity is missing", () => {
+    const rows: Row[] = [
+      { Color: "Red" },
+      { Color: "Red" },
+    ];
+    const result = aggregate(rows, "Color");
+    expect(result.Red).toBe(2);
+  });
+
+  it("groups unknown keys as (unknown)", () => {
+    const rows: Row[] = [
+      { Color: "", Quantity: "3" },
+      { Color: "Red", Quantity: "1" },
+    ];
+    const result = aggregate(rows, "Color");
+    expect(result["(unknown)"]).toBe(3);
+    expect(result.Red).toBe(1);
   });
 });
 
