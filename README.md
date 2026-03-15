@@ -142,6 +142,10 @@ claude --plugin-dir .
 
 This project was developed with AI assistance.
 
+## Trademark Disclosure
+
+This project is in no way affiliated or connected to CellarTracker! LLC. "CellarTracker" is a trademark of CellarTracker! LLC. 
+
 ## License
 
 MIT
