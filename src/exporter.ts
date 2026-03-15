@@ -84,7 +84,14 @@ export async function fetchTable(
   }
 
   const encoding = parseCharset(contentType);
-  const text = new TextDecoder(encoding).decode(buffer);
+  let decoder: TextDecoder;
+  try {
+    decoder = new TextDecoder(encoding);
+  } catch {
+    // Fall back to windows-1252 if the server returns an unrecognized charset
+    decoder = new TextDecoder("windows-1252");
+  }
+  const text = decoder.decode(buffer);
 
   // CellarTracker returns HTML (not CSV) when credentials are wrong, with HTTP 200.
   if (text.trimStart().startsWith("<")) {
