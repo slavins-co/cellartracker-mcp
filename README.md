@@ -9,7 +9,7 @@ Two install methods cover different Claude Desktop modes. You may need one or bo
 | | Desktop Extension (.mcpb) | Claude Code Plugin |
 |---|---|---|
 | **Works in** | Chat, Cowork | Cowork, Code |
-| **Tools** | 8 cellar tools | All 9 tools (includes `setup-credentials`) |
+| **Tools** | 8 cellar tools | All 10 tools (includes `setup-credentials` and `clear-user-data`) |
 | **Skills** | No | Yes |
 | **Setup** | One-click download | Marketplace or CLI |
 | **Credentials** | Prompted on install, stored in OS keychain | Run `setup-credentials` after install |
@@ -78,6 +78,7 @@ Credentials are stored only on your machine. When using the setup tool, they pas
 | `consumption-history` | Wines you've opened — by name, color, or date range |
 | `tasting-notes` | Your tasting notes and reviews with ratings and scores |
 | `refresh-data` | Force a fresh pull (auto-refreshes every 24 hours) |
+| `clear-user-data` | Remove stored credentials and cached data from this machine (Claude Code plugin only) |
 
 ## Included skills
 

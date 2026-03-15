@@ -1,5 +1,5 @@
 /**
- * CellarTracker MCP Server — 9 tools for querying wine cellar data.
+ * CellarTracker MCP Server — 10 tools for querying wine cellar data.
  */
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -7,7 +7,7 @@ import { z } from "zod";
 
 import fs from "node:fs";
 
-import { getCacheDir, getConfigDir, getCredentials, looksLikeTemplate } from "./config.js";
+import { clearUserData, getCacheDir, getConfigDir, getCredentials, looksLikeTemplate } from "./config.js";
 import { AuthError, TABLES, ensureFresh, exportAll, fetchTable } from "./exporter.js";
 import {
   type Row,
@@ -97,7 +97,7 @@ function maturityLabel(row: Row, currentYear: number): string {
   return "No maturity data";
 }
 
-/** Create and configure the MCP server with all 9 tools. */
+/** Create and configure the MCP server with all 10 tools. */
 export function createServer(): McpServer {
   const server = new McpServer({
     name: "cellartracker",
@@ -683,6 +683,46 @@ export function createServer(): McpServer {
                 `You can start using tools like search-cellar, drinking-recommendations, and cellar-stats right away.${envWarning}`,
             },
           ],
+        };
+      }
+    );
+
+    // --- clear-user-data ---
+    server.tool(
+      "clear-user-data",
+      "Remove stored CellarTracker credentials and cached wine data from this machine. " +
+        "Use this to fully disconnect your account or free up disk space.",
+      {
+        clear_credentials: z.boolean().optional().describe("Delete saved credentials (default true)"),
+        clear_cache: z.boolean().optional().describe("Delete cached CSV exports (default true)"),
+      },
+      async ({ clear_credentials, clear_cache }) => {
+        const result = clearUserData({
+          credentials: clear_credentials ?? true,
+          cache: clear_cache ?? true,
+        });
+
+        const parts: string[] = [];
+        if (result.credentials === "deleted") {
+          parts.push("Credentials file deleted.");
+        } else if (result.credentials === "not_found") {
+          parts.push(clear_credentials ?? true
+            ? "No credentials file found."
+            : "Credentials file skipped.");
+        }
+
+        if (clear_cache ?? true) {
+          parts.push(
+            result.cacheFilesRemoved > 0
+              ? `Removed ${result.cacheFilesRemoved} cached file${result.cacheFilesRemoved === 1 ? "" : "s"}.`
+              : "No cached files found."
+          );
+        } else {
+          parts.push("Cache skipped.");
+        }
+
+        return {
+          content: [{ type: "text" as const, text: parts.join("\n") }],
         };
       }
     );
