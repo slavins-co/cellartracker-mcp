@@ -97,7 +97,7 @@ function maturityLabel(row: Row, currentYear: number): string {
   return "No maturity data";
 }
 
-/** Create and configure the MCP server with all 9 tools. */
+/** Create and configure the MCP server with all 10 tools. */
 export function createServer(): McpServer {
   const server = new McpServer({
     name: "cellartracker",

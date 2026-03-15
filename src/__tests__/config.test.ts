@@ -247,6 +247,21 @@ describe("clearUserData", () => {
     expect(result.cacheFilesRemoved).toBe(0);
   });
 
+  it("respects CT_CACHE_DIR override when clearing cache", () => {
+    const customCache = path.join(tmpDir, "custom-cache");
+    fs.mkdirSync(customCache, { recursive: true });
+    fs.writeFileSync(path.join(customCache, "List_latest.csv"), "data");
+
+    process.env.CT_CACHE_DIR = customCache;
+    try {
+      const result = clearUserData({ credentials: false, cache: true });
+      expect(result.cacheFilesRemoved).toBe(1);
+      expect(fs.readdirSync(customCache)).toHaveLength(0);
+    } finally {
+      delete process.env.CT_CACHE_DIR;
+    }
+  });
+
   it("deletes both credentials and cache when both requested", () => {
     const configDir = path.join(fakeHome, ".config", "cellartracker-mcp");
     const cacheDir = path.join(fakeHome, ".cache", "cellartracker-mcp", "exports");

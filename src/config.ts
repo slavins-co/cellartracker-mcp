@@ -127,7 +127,8 @@ export function clearUserData(opts: { credentials: boolean; cache: boolean }): C
   }
 
   if (opts.cache) {
-    const cacheDir = path.join(os.homedir(), ".cache", "cellartracker-mcp", "exports");
+    const cacheDir = process.env.CT_CACHE_DIR
+      ?? path.join(os.homedir(), ".cache", "cellartracker-mcp", "exports");
     let files: string[];
     try {
       files = fs.readdirSync(cacheDir);
