@@ -54,12 +54,13 @@ export function search(rows: Row[], filters: Record<string, string | undefined>)
   );
 }
 
-/** Count rows grouped by a column value, sorted descending. */
+/** Count bottles grouped by a column value, sorted descending. */
 export function aggregate(rows: Row[], groupBy: string): Record<string, number> {
   const counts: Record<string, number> = {};
   for (const row of rows) {
     const key = (row[groupBy] ?? "").trim() || "(unknown)";
-    counts[key] = (counts[key] ?? 0) + 1;
+    const qty = parseInt(row.Quantity ?? row.QtyOH ?? "0", 10) || 0;
+    counts[key] = (counts[key] ?? 0) + qty;
   }
   return Object.fromEntries(
     Object.entries(counts).sort((a, b) => b[1] - a[1])

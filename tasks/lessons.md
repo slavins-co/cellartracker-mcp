@@ -29,3 +29,6 @@
 
 ## .mcpb Bundle Size
 - `mcpb pack` includes all of `node_modules` by default. Use `.mcpbignore` to exclude dev artifacts and `npm ci --omit=dev` in CI before packing to keep bundle small. Without this, the bundle ballooned from 3MB to 31MB. (PR #13)
+
+## Falsy Zero Trap in parseInt Fallbacks
+- `parseInt(value, 10) || 1` silently converts `0` to `1` because `0` is falsy. When counting quantities, use `|| 0` to match the pattern used elsewhere (e.g., `cellar-stats` headline total). The `|| 1` pattern is only safe when you know zero is never a valid value. This caused `aggregate()` breakdown counts to exceed headline totals for cellars with consumed wines (Quantity=0). (PR #37)
