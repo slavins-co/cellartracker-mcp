@@ -92,7 +92,7 @@ To customize the evaluator for your preferences, copy `skills/wine-purchase-eval
 
 ## How it works
 
-CellarTracker has no official API. This server uses their CSV export endpoint, which authenticates with your username and password over HTTPS. Data is cached locally and auto-refreshes every 24 hours.
+CellarTracker has no official API. This server uses their [CSV export endpoint](https://support.cellartracker.com/article/29-exporting-data), which authenticates with your username and password over HTTPS. Data is cached locally and auto-refreshes every 24 hours.
 
 The server can only access **your** data — inventory, purchases, notes, and wishlist. It cannot search CellarTracker's full wine database.
 
