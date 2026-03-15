@@ -59,7 +59,7 @@ export function aggregate(rows: Row[], groupBy: string): Record<string, number> 
   const counts: Record<string, number> = {};
   for (const row of rows) {
     const key = (row[groupBy] ?? "").trim() || "(unknown)";
-    const qty = parseInt(row.Quantity ?? row.QtyOH ?? "1", 10) || 1;
+    const qty = parseInt(row.Quantity ?? row.QtyOH ?? "0", 10) || 0;
     counts[key] = (counts[key] ?? 0) + qty;
   }
   return Object.fromEntries(

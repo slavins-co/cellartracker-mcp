@@ -100,13 +100,22 @@ describe("aggregate", () => {
     expect(result.White).toBe(2);  // 2, not 1 row
   });
 
-  it("defaults to 1 when Quantity is missing", () => {
+  it("defaults to 0 when Quantity is missing (matches cellar-stats)", () => {
     const rows: Row[] = [
       { Color: "Red" },
       { Color: "Red" },
     ];
     const result = aggregate(rows, "Color");
-    expect(result.Red).toBe(2);
+    expect(result.Red).toBe(0);
+  });
+
+  it("treats Quantity 0 as 0, not 1", () => {
+    const rows: Row[] = [
+      { Color: "Red", Quantity: "0" },
+      { Color: "Red", Quantity: "5" },
+    ];
+    const result = aggregate(rows, "Color");
+    expect(result.Red).toBe(5);  // 0 + 5, not 1 + 5
   });
 
   it("groups unknown keys as (unknown)", () => {
