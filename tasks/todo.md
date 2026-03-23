@@ -15,3 +15,4 @@
 - [x] #34 — Fix: validate credentials before sending to CellarTracker (PR #37)
 - [x] #35 — Fix: cellar-stats aggregate counts bottles by Quantity (PR #37)
 - [x] #36 — Fix: server.ts reads version from package.json dynamically (PR #37)
+- [x] Add diagnostic detail to credential-not-found errors (PR #38)
