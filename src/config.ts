@@ -61,15 +61,18 @@ export function getCredentials(): { username: string; password: string } {
   // Check env vars first
   const envUser = process.env.CT_USERNAME;
   const envPass = process.env.CT_PASSWORD;
-  if (envUser && envPass && !looksLikeTemplate(envUser) && !looksLikeTemplate(envPass)) {
+  const envIsTemplate =
+    (envUser && looksLikeTemplate(envUser)) || (envPass && looksLikeTemplate(envPass));
+
+  if (envUser && envPass && !envIsTemplate) {
     return { username: envUser, password: envPass };
   }
 
   // Try .env files in order
-  const envPaths = [
-    path.join(process.cwd(), ".env"),
-    path.join(getConfigDir(), ".env"),
-  ];
+  const cwdEnvPath = path.join(process.cwd(), ".env");
+  const configEnvPath = path.join(getConfigDir(), ".env");
+  const envPaths = [cwdEnvPath, configEnvPath];
+  const fileStatus: string[] = [];
 
   for (const envPath of envPaths) {
     const env = loadEnvFile(envPath);
@@ -92,14 +95,32 @@ export function getCredentials(): { username: string; password: string } {
       }
       return { username, password };
     }
+
+    // Track why this file didn't work (for error message)
+    const label = envPath === configEnvPath ? "~/.config/cellartracker-mcp/.env" : envPath;
+    if (!fs.existsSync(envPath)) {
+      fileStatus.push(`  - ${label}: not found`);
+    } else {
+      fileStatus.push(`  - ${label}: found, missing CT_USERNAME/CT_PASSWORD`);
+    }
+  }
+
+  // Build diagnostic error message
+  let envStatus: string;
+  if (!envUser && !envPass) {
+    envStatus = "not set";
+  } else if (envIsTemplate) {
+    envStatus = "skipped (unresolved template)";
+  } else {
+    envStatus = "incomplete (need both CT_USERNAME and CT_PASSWORD)";
   }
 
   throw new Error(
     "CellarTracker credentials not found.\n\n" +
-      "Use the setup-credentials tool to configure your login, or set CT_USERNAME and CT_PASSWORD via:\n" +
-      "  - Environment variables\n" +
-      "  - .env file in current directory\n" +
-      "  - ~/.config/cellartracker-mcp/.env"
+      "Checked:\n" +
+      `  - CT_USERNAME/CT_PASSWORD env vars: ${envStatus}\n` +
+      fileStatus.join("\n") + "\n\n" +
+      "Run the setup-credentials tool to save your login."
   );
 }
 
