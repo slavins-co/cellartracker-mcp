@@ -173,6 +173,49 @@ describe("getCredentials", () => {
     expect(() => getCredentials()).toThrow("CellarTracker credentials not found");
   });
 
+  it("includes diagnostic detail in error when no credentials found", () => {
+    // No env vars set, no .env files
+    try {
+      getCredentials();
+      expect.fail("should have thrown");
+    } catch (e: unknown) {
+      const msg = (e as Error).message;
+      // Should report env var status
+      expect(msg).toContain("CT_USERNAME/CT_PASSWORD env vars: not set");
+      // Should report CWD path checked
+      expect(msg).toContain(tmpDir);
+      // Should report config dir path checked
+      expect(msg).toContain("~/.config/cellartracker-mcp/.env");
+      // Should mention setup-credentials
+      expect(msg).toContain("setup-credentials");
+    }
+  });
+
+  it("reports template strings in diagnostic error", () => {
+    process.env.CT_USERNAME = "${CT_USERNAME}";
+    process.env.CT_PASSWORD = "${CT_PASSWORD}";
+    // No .env files to fall back to
+    try {
+      getCredentials();
+      expect.fail("should have thrown");
+    } catch (e: unknown) {
+      const msg = (e as Error).message;
+      expect(msg).toContain("skipped (unresolved template)");
+    }
+  });
+
+  it("reports missing keys in diagnostic error when .env exists but lacks credentials", () => {
+    // Write a .env file in CWD with wrong keys
+    fs.writeFileSync(path.join(tmpDir, ".env"), "SOME_OTHER_KEY=value\n");
+    try {
+      getCredentials();
+      expect.fail("should have thrown");
+    } catch (e: unknown) {
+      const msg = (e as Error).message;
+      expect(msg).toContain("found, missing CT_USERNAME/CT_PASSWORD");
+    }
+  });
+
   it("reads from CWD .env file", () => {
     const cwdEnvPath = path.join(tmpDir, ".env");
     fs.writeFileSync(cwdEnvPath, "CT_USERNAME=cwduser\nCT_PASSWORD=cwdpass\n");
