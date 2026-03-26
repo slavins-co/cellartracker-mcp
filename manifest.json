@@ -2,7 +2,7 @@
   "manifest_version": "0.3",
   "name": "cellartracker-mcp",
   "display_name": "CellarTracker",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Query your CellarTracker wine cellar — inventory, drinking recommendations, purchase history, tasting notes, and wishlist.",
   "author": {
     "name": "Brad Slavin",
