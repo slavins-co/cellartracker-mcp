@@ -232,3 +232,46 @@ export function spendSummary(
     recent: sorted.slice(0, 10),
   };
 }
+
+export interface DeliverySummaryResult {
+  date_from: string;
+  date_to: string;
+  line_count: number;
+  bottle_count: number;
+  deliveries: Row[];
+}
+
+/**
+ * Summarize wines actually delivered (received) within a date window,
+ * keyed on DeliveryDate. Only rows flagged Delivered are counted; pending
+ * placeholder rows (Delivered=false, where DeliveryDate mirrors the order
+ * date) are excluded. Sorted newest delivery first. Bounds are inclusive.
+ */
+export function deliverySummary(
+  purchaseRows: Row[],
+  dateFrom: string,
+  dateTo: string
+): DeliverySummaryResult {
+  const deliveries = purchaseRows
+    .filter((r) => String(r.Delivered).toLowerCase() === "true")
+    .filter((r) => {
+      const d = toIsoDate(r.DeliveryDate);
+      return d !== "" && d >= dateFrom && d <= dateTo;
+    })
+    .sort((a, b) =>
+      toIsoDate(b.DeliveryDate).localeCompare(toIsoDate(a.DeliveryDate))
+    );
+
+  const bottleCount = deliveries.reduce(
+    (sum, r) => sum + safeInt(r.Quantity, 0),
+    0
+  );
+
+  return {
+    date_from: dateFrom,
+    date_to: dateTo,
+    line_count: deliveries.length,
+    bottle_count: bottleCount,
+    deliveries,
+  };
+}

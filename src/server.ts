@@ -1,5 +1,5 @@
 /**
- * CellarTracker MCP Server — 10 tools for querying wine cellar data.
+ * CellarTracker MCP Server — 11 tools for querying wine cellar data.
  */
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -14,6 +14,7 @@ import {
   type Row,
   aggregate,
   crossReference,
+  deliverySummary,
   drinkingPriority,
   loadTable,
   search,
@@ -402,27 +403,19 @@ export function createServer(): McpServer {
       const to = date_to ?? iso(today);
 
       const scoped = store ? search(purchaseRows, { StoreName: store }) : purchaseRows;
+      const summary = deliverySummary(scoped, from, to);
 
-      const delivered = scoped
-        .filter((r) => String(r.Delivered).toLowerCase() === "true")
-        .filter((r) => {
-          const d = toIsoDate(r.DeliveryDate);
-          return d !== "" && d >= from && d <= to;
-        })
-        .sort((a, b) => toIsoDate(b.DeliveryDate).localeCompare(toIsoDate(a.DeliveryDate)));
-
-      const bottles = delivered.reduce((s, r) => s + (parseInt(r.Quantity ?? "0") || 0), 0);
       const lines = [
-        `Deliveries ${from} to ${to}`,
+        `Deliveries ${summary.date_from} to ${summary.date_to}`,
         "=".repeat(40),
-        `Lines: ${delivered.length}   Bottles: ${bottles}`,
+        `Lines: ${summary.line_count}   Bottles: ${summary.bottle_count}`,
         "",
       ];
 
-      if (delivered.length === 0) {
+      if (summary.deliveries.length === 0) {
         lines.push("No deliveries in this window.");
       } else {
-        for (const r of delivered) {
+        for (const r of summary.deliveries) {
           const vint = r.Vintage && r.Vintage !== "1001" ? r.Vintage : "NV";
           lines.push(`  ${toIsoDate(r.DeliveryDate)}  ${vint} ${r.Wine ?? "Unknown"}`);
           lines.push(`    $${r.Price ?? "?"} x${r.Quantity ?? "1"}` + (r.StoreName ? ` @ ${r.StoreName}` : ""));

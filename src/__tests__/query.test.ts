@@ -5,6 +5,7 @@ import {
   toIsoDate,
   drinkingPriority,
   spendSummary,
+  deliverySummary,
   type Row,
 } from "../query.js";
 
@@ -341,5 +342,88 @@ describe("spendSummary", () => {
     const storeNames = Object.keys(result.by_store);
     expect(storeNames[0]).toBe("Big Store");
     expect(storeNames[1]).toBe("Small Store");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// deliverySummary
+// ---------------------------------------------------------------------------
+describe("deliverySummary", () => {
+  const makeDeliveryRow = (
+    wine: string,
+    deliveryDate: string,
+    delivered: string,
+    qty: string,
+    store = "Boyd Goodyear"
+  ): Row => ({
+    Wine: wine,
+    DeliveryDate: deliveryDate,
+    Delivered: delivered,
+    Quantity: qty,
+    Price: "100",
+    StoreName: store,
+  });
+
+  it("counts delivered lines and bottles within the window", () => {
+    const rows = [
+      makeDeliveryRow("Wine A", "6/2/2026", "true", "6"),
+      makeDeliveryRow("Wine B", "6/2/2026", "true", "12"),
+    ];
+    const result = deliverySummary(rows, "2026-06-01", "2026-06-30");
+    expect(result.line_count).toBe(2);
+    expect(result.bottle_count).toBe(18);
+  });
+
+  it("excludes rows outside the date window", () => {
+    const rows = [
+      makeDeliveryRow("In", "6/15/2026", "true", "6"),
+      makeDeliveryRow("Before", "5/31/2026", "true", "6"),
+      makeDeliveryRow("After", "7/1/2026", "true", "6"),
+    ];
+    const result = deliverySummary(rows, "2026-06-01", "2026-06-30");
+    expect(result.line_count).toBe(1);
+    expect(result.deliveries[0].Wine).toBe("In");
+  });
+
+  it("excludes pending placeholder rows (Delivered=false)", () => {
+    const rows = [
+      makeDeliveryRow("Delivered", "6/2/2026", "true", "6"),
+      makeDeliveryRow("Pending", "6/2/2026", "false", "6"),
+    ];
+    const result = deliverySummary(rows, "2026-06-01", "2026-06-30");
+    expect(result.line_count).toBe(1);
+    expect(result.deliveries[0].Wine).toBe("Delivered");
+  });
+
+  it("excludes rows with no delivery date", () => {
+    const rows = [makeDeliveryRow("No Date", "", "true", "6")];
+    const result = deliverySummary(rows, "2026-06-01", "2026-06-30");
+    expect(result.line_count).toBe(0);
+  });
+
+  it("treats window bounds as inclusive", () => {
+    const rows = [
+      makeDeliveryRow("First", "6/1/2026", "true", "1"),
+      makeDeliveryRow("Last", "6/30/2026", "true", "1"),
+    ];
+    const result = deliverySummary(rows, "2026-06-01", "2026-06-30");
+    expect(result.line_count).toBe(2);
+  });
+
+  it("sorts deliveries newest first", () => {
+    const rows = [
+      makeDeliveryRow("Older", "6/2/2026", "true", "1"),
+      makeDeliveryRow("Newer", "6/20/2026", "true", "1"),
+    ];
+    const result = deliverySummary(rows, "2026-06-01", "2026-06-30");
+    expect(result.deliveries[0].Wine).toBe("Newer");
+    expect(result.deliveries[1].Wine).toBe("Older");
+  });
+
+  it("returns zeros for empty input", () => {
+    const result = deliverySummary([], "2026-06-01", "2026-06-30");
+    expect(result.line_count).toBe(0);
+    expect(result.bottle_count).toBe(0);
+    expect(result.deliveries).toEqual([]);
   });
 });
