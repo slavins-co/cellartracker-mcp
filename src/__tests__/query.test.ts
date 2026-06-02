@@ -354,7 +354,7 @@ describe("deliverySummary", () => {
     deliveryDate: string,
     delivered: string,
     qty: string,
-    store = "Boyd Goodyear"
+    store = "Test Store"
   ): Row => ({
     Wine: wine,
     DeliveryDate: deliveryDate,
