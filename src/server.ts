@@ -380,7 +380,59 @@ export function createServer(): McpServer {
       return { content: [{ type: "text", text: lines.join("\n") }] };
     }
   );
+  
+// --- recent-deliveries ---
+  server.tool(
+    "recent-deliveries",
+    "List wines actually delivered (received) in a date range, keyed on " +
+      "DeliveryDate. Defaults to the last 30 days. Use this for 'what just " +
+      "landed', unlike purchase-history which keys on order date.",
+    {
+      date_from: z.string().optional().describe("Start delivery date (YYYY-MM-DD). Defaults to 30 days ago."),
+      date_to: z.string().optional().describe("End delivery date (YYYY-MM-DD). Defaults to today."),
+      store: z.string().optional().describe("Store name filter"),
+    },
+    async ({ date_from, date_to, store }) => {
+      const paths = await getFreshPaths();
+      const purchaseRows = loadTable(paths.Purchase);
 
+      const today = new Date();
+      const iso = (d: Date) => d.toISOString().slice(0, 10);
+      const from = date_from ?? iso(new Date(today.getTime() - 30 * 864e5));
+      const to = date_to ?? iso(today);
+
+      const scoped = store ? search(purchaseRows, { StoreName: store }) : purchaseRows;
+
+      const delivered = scoped
+        .filter((r) => String(r.Delivered).toLowerCase() === "true")
+        .filter((r) => {
+          const d = toIsoDate(r.DeliveryDate);
+          return d !== "" && d >= from && d <= to;
+        })
+        .sort((a, b) => toIsoDate(b.DeliveryDate).localeCompare(toIsoDate(a.DeliveryDate)));
+
+      const bottles = delivered.reduce((s, r) => s + (parseInt(r.Quantity ?? "0") || 0), 0);
+      const lines = [
+        `Deliveries ${from} to ${to}`,
+        "=".repeat(40),
+        `Lines: ${delivered.length}   Bottles: ${bottles}`,
+        "",
+      ];
+
+      if (delivered.length === 0) {
+        lines.push("No deliveries in this window.");
+      } else {
+        for (const r of delivered) {
+          const vint = r.Vintage && r.Vintage !== "1001" ? r.Vintage : "NV";
+          lines.push(`  ${toIsoDate(r.DeliveryDate)}  ${vint} ${r.Wine ?? "Unknown"}`);
+          lines.push(`    $${r.Price ?? "?"} x${r.Quantity ?? "1"}` + (r.StoreName ? ` @ ${r.StoreName}` : ""));
+        }
+      }
+
+      return { content: [{ type: "text", text: lines.join("\n") }] };
+    }
+  );
+  
   // --- get-wishlist ---
   server.tool(
     "get-wishlist",
