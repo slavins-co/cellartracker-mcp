@@ -20,3 +20,6 @@
 - [x] #42 — Surface server version in refresh-data output (PR #55)
 - [x] #41 — Add CI on push/PR, Dependabot config, and SECURITY.md (PR #56)
 - [x] Maintainer settings for #41: branch protection on `main` requiring the CI check, Dependabot alerts + security updates, and "Private vulnerability reporting" all enabled
+- [x] #43 — Cache freshness: oldest `_latest.csv` mtime, not newest (partial-failure self-heal) (PR #72)
+- [x] #44 — Dedupe concurrent cache refreshes with an in-flight promise keyed by cacheDir (PR #72)
+- [ ] Follow-up (from #43): `getCacheAge` could filter to known `TABLES` names so a future orphaned `_latest.csv` (table removal/rename) can't pin the cache stale — no current code path creates orphans
