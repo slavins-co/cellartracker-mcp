@@ -381,8 +381,8 @@ export function createServer(): McpServer {
       return { content: [{ type: "text", text: lines.join("\n") }] };
     }
   );
-  
-// --- recent-deliveries ---
+
+  // --- recent-deliveries ---
   server.tool(
     "recent-deliveries",
     "List wines actually delivered (received) in a date range, keyed on " +
@@ -425,7 +425,7 @@ export function createServer(): McpServer {
       return { content: [{ type: "text", text: lines.join("\n") }] };
     }
   );
-  
+
   // --- get-wishlist ---
   server.tool(
     "get-wishlist",

@@ -374,6 +374,15 @@ describe("deliverySummary", () => {
     expect(result.bottle_count).toBe(18);
   });
 
+  it("matches real CellarTracker casing (Delivered='True', capital T)", () => {
+    // Live Purchase exports store the flag as "True", not "true";
+    // deliverySummary must stay case-insensitive or it silently returns nothing.
+    const rows = [makeDeliveryRow("Cap T", "6/2/2026", "True", "3")];
+    const result = deliverySummary(rows, "2026-06-01", "2026-06-30");
+    expect(result.line_count).toBe(1);
+    expect(result.bottle_count).toBe(3);
+  });
+
   it("excludes rows outside the date window", () => {
     const rows = [
       makeDeliveryRow("In", "6/15/2026", "true", "6"),
