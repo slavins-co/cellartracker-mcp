@@ -65,10 +65,22 @@ class RetryableError extends Error {
   }
 }
 
-const MAX_ATTEMPTS = 3; // 1 initial + 2 retries
+/**
+ * Per-attempt fetch timeouts (ms): a generous first attempt for the happy path,
+ * then shorter retries. The sum plus backoff (~4.6s max) stays well under typical
+ * MCP client tool timeouts (~60s), so a wedged CellarTracker surfaces our own
+ * "service may be down" error rather than a client-side abort mid-retry (issue #47).
+ */
+const ATTEMPT_TIMEOUTS_MS = [25_000, 10_000, 10_000];
+const MAX_ATTEMPTS = ATTEMPT_TIMEOUTS_MS.length; // 1 initial + 2 retries
 
 const sleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
+
+/** Wrap a caught throwable as retryable, carrying only its class name — never a URL. */
+function toRetryable(e: unknown): RetryableError {
+  return new RetryableError(e instanceof Error ? e.constructor.name : "Error");
+}
 
 /** Decode a response body using the Content-Type charset, falling back to windows-1252. */
 function decodeBody(buffer: ArrayBuffer, contentType: string | null): string {
@@ -91,17 +103,17 @@ function decodeBody(buffer: ArrayBuffer, contentType: string | null): string {
  * - plain Error("HTTP <status>"): other 4xx (non-retryable, non-auth).
  * Never includes the request URL (which carries the password) in any message.
  */
-async function fetchTableOnce(url: string): Promise<string> {
+async function fetchTableOnce(url: string, timeoutMs: number): Promise<string> {
   let response: Response;
   try {
     response = await fetch(url, {
-      signal: AbortSignal.timeout(60_000),
+      signal: AbortSignal.timeout(timeoutMs),
       redirect: "error",
     });
   } catch (e) {
     // fetch() itself failed (DNS, connection reset, timeout, redirect error).
-    // Transient — retry. Use the error's class name only, never its message/URL.
-    throw new RetryableError(e instanceof Error ? e.constructor.name : "Error");
+    // Transient — retry. Carry only the class name, never the message/URL.
+    throw toRetryable(e);
   }
 
   if (response.status === 401 || response.status === 403) {
@@ -120,7 +132,7 @@ async function fetchTableOnce(url: string): Promise<string> {
   try {
     buffer = await response.arrayBuffer();
   } catch (e) {
-    throw new RetryableError(e instanceof Error ? e.constructor.name : "Error");
+    throw toRetryable(e);
   }
   const text = decodeBody(buffer, contentType);
 
@@ -162,7 +174,7 @@ export async function fetchTable(
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
-      return await fetchTableOnce(url);
+      return await fetchTableOnce(url, ATTEMPT_TIMEOUTS_MS[attempt - 1]);
     } catch (e) {
       // Auth/service failures are definitive — surface their clean messages as-is.
       if (e instanceof AuthError || e instanceof ServiceError) {

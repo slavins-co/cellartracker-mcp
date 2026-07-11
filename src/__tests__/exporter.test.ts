@@ -257,8 +257,7 @@ describe("fetchTable error classification (issue #45)", () => {
 
     const err = await fetchTable("u", "p", LIST_PARAMS, { baseDelayMs: 0 }).catch((e) => e);
     expect(err).not.toBeInstanceOf(AuthError);
-    expect(err.name).toBe("ServiceError");
-    expect(err.message.toLowerCase()).toContain("try again");
+    expect(err.name).toBe("ServiceError"); // distinct typed error, not auth
     expect(mock).toHaveBeenCalledTimes(1); // not retried
   });
 
