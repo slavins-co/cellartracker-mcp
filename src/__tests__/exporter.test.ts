@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { TABLES, ensureFresh, getCacheAge, parseCharset } from "../exporter.js";
+import { AuthError, TABLES, ensureFresh, fetchTable, getCacheAge, parseCharset } from "../exporter.js";
 
 describe("parseCharset", () => {
   it("returns windows-1252 when content-type is null", () => {
@@ -180,9 +180,10 @@ describe("ensureFresh in-flight dedup (issue #44)", () => {
   });
 
   it("rejects all waiters on failure, then a later call starts a fresh refresh", async () => {
-    const mock = vi.fn(async () => {
-      throw new Error("network down");
-    });
+    // Use a non-retryable failure (HTTP 400) so each table fails on its first
+    // attempt — this isolates dedup behavior from fetchTable's retry (issue #47),
+    // keeping the count at one attempt per table and the test fast.
+    const mock = vi.fn(async () => new Response("bad request", { status: 400 }));
     vi.stubGlobal("fetch", mock);
 
     const p1 = ensureFresh("user", "pass", dir());
@@ -214,5 +215,122 @@ describe("ensureFresh in-flight dedup (issue #44)", () => {
     } finally {
       fs.rmSync(dirB, { recursive: true, force: true });
     }
+  });
+});
+
+const LIST_PARAMS = TABLES.List.params;
+const NOT_LOGGED_IN = "You are currently not logged into CellarTracker.";
+
+function htmlResponse(body: string, status = 200): Response {
+  return new Response(body, {
+    status,
+    headers: { "content-type": "text/html; charset=utf-8" },
+  });
+}
+function csvResponse(body: string, status = 200): Response {
+  return new Response(body, {
+    status,
+    headers: { "content-type": "text/csv; charset=utf-8" },
+  });
+}
+
+describe("fetchTable error classification (issue #45)", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("throws AuthError when the HTML contains the not-logged-in marker", async () => {
+    const mock = vi.fn(async () =>
+      htmlResponse(`<html><body>${NOT_LOGGED_IN}</body></html>`)
+    );
+    vi.stubGlobal("fetch", mock);
+
+    await expect(
+      fetchTable("u", "p", LIST_PARAMS, { baseDelayMs: 0 })
+    ).rejects.toBeInstanceOf(AuthError);
+    expect(mock).toHaveBeenCalledTimes(1); // never retried
+  });
+
+  it("throws a service error (not AuthError) for HTML without the marker", async () => {
+    const mock = vi.fn(async () =>
+      htmlResponse("<html><body>Down for scheduled maintenance.</body></html>")
+    );
+    vi.stubGlobal("fetch", mock);
+
+    const err = await fetchTable("u", "p", LIST_PARAMS, { baseDelayMs: 0 }).catch((e) => e);
+    expect(err).not.toBeInstanceOf(AuthError);
+    expect(err.name).toBe("ServiceError");
+    expect(err.message.toLowerCase()).toContain("try again");
+    expect(mock).toHaveBeenCalledTimes(1); // not retried
+  });
+
+  it("parses a CSV body normally", async () => {
+    const mock = vi.fn(async () => csvResponse("iWine,Wine\r\n123,Test\r\n"));
+    vi.stubGlobal("fetch", mock);
+
+    const text = await fetchTable("u", "p", LIST_PARAMS, { baseDelayMs: 0 });
+    expect(text).toBe("iWine,Wine\n123,Test\n"); // CRLF normalized
+    expect(mock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("fetchTable retry with backoff (issue #47)", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("retries a 5xx and succeeds on the second attempt", async () => {
+    const mock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response("", { status: 503 }))
+      .mockResolvedValueOnce(csvResponse("iWine,Wine\n1,X\n"));
+    vi.stubGlobal("fetch", mock);
+
+    const text = await fetchTable("u", "p", LIST_PARAMS, { baseDelayMs: 0 });
+    expect(text).toContain("iWine");
+    expect(mock).toHaveBeenCalledTimes(2);
+  });
+
+  it("retries transient network errors then succeeds", async () => {
+    const mock = vi
+      .fn()
+      .mockRejectedValueOnce(new TypeError("fetch failed"))
+      .mockResolvedValueOnce(csvResponse("iWine,Wine\n1,X\n"));
+    vi.stubGlobal("fetch", mock);
+
+    const text = await fetchTable("u", "p", LIST_PARAMS, { baseDelayMs: 0 });
+    expect(text).toContain("iWine");
+    expect(mock).toHaveBeenCalledTimes(2);
+  });
+
+  it("does NOT retry an AuthError (exactly one attempt)", async () => {
+    const mock = vi.fn(async () =>
+      htmlResponse(`<html>${NOT_LOGGED_IN}</html>`)
+    );
+    vi.stubGlobal("fetch", mock);
+
+    await expect(
+      fetchTable("u", "p", LIST_PARAMS, { baseDelayMs: 0 })
+    ).rejects.toBeInstanceOf(AuthError);
+    expect(mock).toHaveBeenCalledTimes(1);
+  });
+
+  it("does NOT retry a 4xx (exactly one attempt, not an AuthError)", async () => {
+    const mock = vi.fn(async () => new Response("bad request", { status: 400 }));
+    vi.stubGlobal("fetch", mock);
+
+    const err = await fetchTable("u", "p", LIST_PARAMS, { baseDelayMs: 0 }).catch((e) => e);
+    expect(err).toBeInstanceOf(Error);
+    expect(err).not.toBeInstanceOf(AuthError);
+    expect(mock).toHaveBeenCalledTimes(1);
+  });
+
+  it("fails after 3 attempts on persistent failure, with credentials absent from the message", async () => {
+    const mock = vi.fn().mockRejectedValue(new TypeError("fetch failed"));
+    vi.stubGlobal("fetch", mock);
+
+    const err = await fetchTable("myuser", "SECRET_PW", LIST_PARAMS, { baseDelayMs: 0 }).catch(
+      (e) => e
+    );
+    expect(err).toBeInstanceOf(Error);
+    expect(mock).toHaveBeenCalledTimes(3); // 1 initial + 2 retries
+    expect(err.message).not.toContain("SECRET_PW");
+    expect(err.message).not.toContain("myuser");
   });
 });
