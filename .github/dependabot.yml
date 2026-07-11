@@ -4,8 +4,27 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      # Routine minor/patch bumps arrive as two grouped PRs instead of one-per-dep.
+      dev-minor-patch:
+        dependency-type: "development"
+        update-types: ["minor", "patch"]
+      prod-minor-patch:
+        dependency-type: "production"
+        update-types: ["minor", "patch"]
+    ignore:
+      # @types/node must track the runtime (Node >=18, CI on 20), never lead it.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
+    # Major bumps for everything else stay UNgrouped on purpose: each surfaces as
+    # its own PR for a deliberate decision (e.g. zod 4, typescript 7) rather than
+    # silently stacking up before a release.
 
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
+    groups:
+      github-actions:
+        patterns: ["*"]
