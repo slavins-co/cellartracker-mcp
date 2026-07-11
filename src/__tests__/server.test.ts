@@ -16,4 +16,17 @@ describe("server version", () => {
     const hardcodedVersion = /version:\s*"[\d.]+"/;
     expect(serverSrc).not.toMatch(hardcodedVersion);
   });
+
+  it("includes the server version in refresh-data output", () => {
+    const serverSrc = fs.readFileSync(
+      path.resolve(__dirname, "../server.ts"),
+      "utf-8"
+    );
+    const refreshDataBlock = serverSrc.slice(
+      serverSrc.indexOf('"refresh-data"'),
+      serverSrc.indexOf('"setup-credentials"')
+    );
+    // Must dynamically interpolate the version constant, not a hardcoded string
+    expect(refreshDataBlock).toMatch(/Server: cellartracker-mcp v\$\{version\}/);
+  });
 });

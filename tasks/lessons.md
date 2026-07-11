@@ -32,3 +32,15 @@
 
 ## Falsy Zero Trap in parseInt Fallbacks
 - `parseInt(value, 10) || 1` silently converts `0` to `1` because `0` is falsy. When counting quantities, use `|| 0` to match the pattern used elsewhere (e.g., `cellar-stats` headline total). The `|| 1` pattern is only safe when you know zero is never a valid value. This caused `aggregate()` breakdown counts to exceed headline totals for cellars with consumed wines (Quantity=0). (PR #37)
+
+## Build Staleness via npx Local Resolution
+- `npx -y cellartracker-mcp` can resolve to a local checkout of this repo instead of the npm registry when the session cwd is inside it (npm's `package-lock.json` records a relative `resolved` path when this happens). If the local `dist/` wasn't rebuilt after a `src/` change, the stale compiled code silently serves — this caused the #35/#37 fix to sit unbuilt for ~4 months. Fix: a `"prepare": "npm run build"` script in `package.json` rebuilds `dist/` on every install path (fresh clone, `npm ci`, and npm's local/file-style resolution), but does NOT catch the case of editing `src/` directly without reinstalling/rebuilding — that's a manual-discipline gap with no automatic trigger point (`npm run build` before trusting local output). (PR #55, issue #40)
+
+## Lockfile Version Can Drift Independently
+- `package-lock.json`'s top-level `version` field can go stale relative to `package.json` even when nothing else in the lockfile needs updating — `npm install` doesn't always rewrite it. The existing `verify-versions` script only checks `package.json`/`manifest.json`/`plugin.json`/`marketplace.json`, not `package-lock.json`. Caught by chance while rebuilding `dist/` for #40 (0.2.6 vs 0.3.1). Worth checking `package-lock.json`'s version alongside the others if this becomes a recurring issue. (PR #55)
+
+## Synology Drive Sync Causes Spurious Mode-Only Git Diffs
+- Working inside a Synology Drive–synced folder, files can repeatedly show as modified in `git status` with a 644→755 mode-only diff (zero content change) — the sync client appears to re-touch permission bits independently of any edits, and it recurs even after stashing/discarding. `git config core.fileMode false` in the repo stops git from tracking permission bits and ends the noise. Verify via `git diff --raw` (look for `0000000` new-blob placeholders with identical old/new content) before assuming any "modified" file in this repo actually changed.
+
+## server.test.ts Has No Live Tool-Invocation Infrastructure
+- `src/__tests__/server.test.ts` tests `server.ts` entirely via static source-text assertions (`fs.readFileSync` + regex/substring checks on the source) — there is no `vi.mock`, no `createServer()` invocation, no mocked `getCredentials`/`exportAll` anywhere in the test suite. When adding a small, single-call-site feature to a tool handler, match this convention (a source-text assertion) rather than building new live-invocation mocking infrastructure — that's a much bigger, precedent-setting change than a one-line feature warrants. Building real tool-invocation tests would be a deliberate, separate decision, not something to introduce incidentally. (PR #55, issue #42)
