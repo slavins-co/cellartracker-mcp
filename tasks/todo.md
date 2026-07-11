@@ -23,3 +23,5 @@
 - [x] #43 — Cache freshness: oldest `_latest.csv` mtime, not newest (partial-failure self-heal) (PR #72)
 - [x] #44 — Dedupe concurrent cache refreshes with an in-flight promise keyed by cacheDir (PR #72)
 - [ ] Follow-up (from #43): `getCacheAge` could filter to known `TABLES` names so a future orphaned `_latest.csv` (table removal/rename) can't pin the cache stale — no current code path creates orphans
+- [x] #45 — Auth detection via exact not-logged-in marker; other HTML → ServiceError (PR #73)
+- [x] #47 — Retry network errors + 5xx with jittered backoff in fetchTable; tiered timeouts bound worst case (PR #73)
