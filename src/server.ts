@@ -1,5 +1,5 @@
 /**
- * CellarTracker MCP Server — 10 tools for querying wine cellar data.
+ * CellarTracker MCP Server — 11 tools for querying wine cellar data.
  */
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -14,6 +14,7 @@ import {
   type Row,
   aggregate,
   crossReference,
+  deliverySummary,
   drinkingPriority,
   loadTable,
   search,
@@ -374,6 +375,50 @@ export function createServer(): McpServer {
           const sn = row.StoreName ?? "";
           lines.push(`  ${date}  ${wine}`);
           lines.push(`    $${price} x${qty}` + (sn ? ` @ ${sn}` : ""));
+        }
+      }
+
+      return { content: [{ type: "text", text: lines.join("\n") }] };
+    }
+  );
+
+  // --- recent-deliveries ---
+  server.tool(
+    "recent-deliveries",
+    "List wines actually delivered (received) in a date range, keyed on " +
+      "DeliveryDate. Defaults to the last 30 days. Use this for 'what just " +
+      "landed', unlike purchase-history which keys on order date.",
+    {
+      date_from: z.string().optional().describe("Start delivery date (YYYY-MM-DD). Defaults to 30 days ago."),
+      date_to: z.string().optional().describe("End delivery date (YYYY-MM-DD). Defaults to today."),
+      store: z.string().optional().describe("Store name filter"),
+    },
+    async ({ date_from, date_to, store }) => {
+      const paths = await getFreshPaths();
+      const purchaseRows = loadTable(paths.Purchase);
+
+      const today = new Date();
+      const iso = (d: Date) => d.toISOString().slice(0, 10);
+      const from = date_from ?? iso(new Date(today.getTime() - 30 * 864e5));
+      const to = date_to ?? iso(today);
+
+      const scoped = store ? search(purchaseRows, { StoreName: store }) : purchaseRows;
+      const summary = deliverySummary(scoped, from, to);
+
+      const lines = [
+        `Deliveries ${summary.date_from} to ${summary.date_to}`,
+        "=".repeat(40),
+        `Lines: ${summary.line_count}   Bottles: ${summary.bottle_count}`,
+        "",
+      ];
+
+      if (summary.deliveries.length === 0) {
+        lines.push("No deliveries in this window.");
+      } else {
+        for (const r of summary.deliveries) {
+          const vint = r.Vintage && r.Vintage !== "1001" ? r.Vintage : "NV";
+          lines.push(`  ${toIsoDate(r.DeliveryDate)}  ${vint} ${r.Wine ?? "Unknown"}`);
+          lines.push(`    $${r.Price ?? "?"} x${r.Quantity ?? "1"}` + (r.StoreName ? ` @ ${r.StoreName}` : ""));
         }
       }
 
