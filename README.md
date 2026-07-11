@@ -138,6 +138,10 @@ cp .env.example .env
 claude --plugin-dir .
 ```
 
+### npx local-resolution footgun
+
+If you run `npx -y cellartracker-mcp` (e.g. via an MCP client config) with your working directory inside a local checkout of this repo, npm can resolve the bare package name to that local folder instead of downloading it from the registry — so whatever is on disk in `dist/` gets served, not the published version. `npm install`/`npm ci` now runs a `prepare` script that rebuilds `dist/` automatically, so a fresh clone is always current. But if you edit `src/` directly and don't run `npm install` or `npm run build` again, `dist/` will silently go stale — the server keeps running the old compiled code with no error. If output looks wrong while developing, rebuild (`npm run build`) before assuming the bug is in `src/`.
+
 ## AI Disclosure
 
 This project was developed with AI assistance.
