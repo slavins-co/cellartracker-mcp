@@ -625,6 +625,7 @@ export function createServer(): McpServer {
         const desc = TABLES[tableName].desc;
         lines.push(`  ${tableName.padEnd(15)} ${String(rows.length).padStart(6)} rows  (${desc})`);
       }
+      lines.push("", `Server: cellartracker-mcp v${version}`);
 
       return { content: [{ type: "text", text: lines.join("\n") }] };
     }
