@@ -39,50 +39,51 @@ export const TABLES: Record<
 };
 
 /**
- * Fetch a single table from CellarTracker as CSV text.
- * Decodes using the charset from the Content-Type header, falling back to windows-1252.
+ * Exact marker CellarTracker embeds in the HTML it returns (HTTP 200) for a
+ * not-logged-in session. Matching this — rather than "body looks like HTML" —
+ * keeps maintenance/error pages from being misreported as bad credentials.
+ * Same string the reference client (mathroule/cellartracker) keys on.
  */
-export async function fetchTable(
-  user: string,
-  password: string,
-  extraParams: Record<string, string>
-): Promise<string> {
-  const params = new URLSearchParams({
-    User: user,
-    Password: password,
-    Format: "csv",
-    ...extraParams,
-  });
-  const url = `${BASE_URL}?${params.toString()}`;
+const NOT_LOGGED_IN_MARKER = "You are currently not logged into CellarTracker.";
 
-  let buffer: ArrayBuffer;
-  let contentType: string | null = null;
-  try {
-    const response = await fetch(url, {
-      signal: AbortSignal.timeout(60_000),
-      redirect: "error",
-    });
-    if (response.status === 401 || response.status === 403) {
-      throw new AuthError();
-    }
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-    contentType = response.headers.get("content-type");
-    buffer = await response.arrayBuffer();
-  } catch (e) {
-    // Preserve typed auth errors; strip all others to avoid leaking
-    // credentials embedded in the URL query string via stack trace
-    if (e instanceof AuthError) {
-      throw e;
-    }
-    const table = extraParams.Table ?? "unknown";
-    const errType = e instanceof Error ? e.constructor.name : "Error";
-    throw new Error(
-      `Failed to fetch table '${table}' from CellarTracker: ${errType}`
-    );
+const SERVICE_MESSAGE =
+  "CellarTracker returned an unexpected page. The service may be down; try again later.";
+
+/** Typed error for a non-auth service problem (maintenance/error page or unexpected body). */
+export class ServiceError extends Error {
+  constructor() {
+    super(SERVICE_MESSAGE);
+    this.name = "ServiceError";
   }
+}
 
+/** Internal marker for transient failures (network/timeout or HTTP 5xx) that are safe to retry. */
+class RetryableError extends Error {
+  constructor(reason: string) {
+    super(reason);
+    this.name = "RetryableError";
+  }
+}
+
+/**
+ * Per-attempt fetch timeouts (ms): a generous first attempt for the happy path,
+ * then shorter retries. The sum plus backoff (~4.6s max) stays well under typical
+ * MCP client tool timeouts (~60s), so a wedged CellarTracker surfaces our own
+ * "service may be down" error rather than a client-side abort mid-retry (issue #47).
+ */
+const ATTEMPT_TIMEOUTS_MS = [25_000, 10_000, 10_000];
+const MAX_ATTEMPTS = ATTEMPT_TIMEOUTS_MS.length; // 1 initial + 2 retries
+
+const sleep = (ms: number): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, ms));
+
+/** Wrap a caught throwable as retryable, carrying only its class name — never a URL. */
+function toRetryable(e: unknown): RetryableError {
+  return new RetryableError(e instanceof Error ? e.constructor.name : "Error");
+}
+
+/** Decode a response body using the Content-Type charset, falling back to windows-1252. */
+function decodeBody(buffer: ArrayBuffer, contentType: string | null): string {
   const encoding = parseCharset(contentType);
   let decoder: TextDecoder;
   try {
@@ -91,14 +92,112 @@ export async function fetchTable(
     // Fall back to windows-1252 if the server returns an unrecognized charset
     decoder = new TextDecoder("windows-1252");
   }
-  const text = decoder.decode(buffer);
+  return decoder.decode(buffer);
+}
 
-  // CellarTracker returns HTML (not CSV) when credentials are wrong, with HTTP 200.
-  if (text.trimStart().startsWith("<")) {
+/**
+ * A single fetch attempt. Classifies the outcome into typed errors:
+ * - AuthError: 401/403, or an HTML body carrying the not-logged-in marker.
+ * - ServiceError: any other HTML body (maintenance/error page) on a 2xx.
+ * - RetryableError: network/timeout failure, body-read failure, or HTTP 5xx.
+ * - plain Error("HTTP <status>"): other 4xx (non-retryable, non-auth).
+ * Never includes the request URL (which carries the password) in any message.
+ */
+async function fetchTableOnce(url: string, timeoutMs: number): Promise<string> {
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      signal: AbortSignal.timeout(timeoutMs),
+      redirect: "error",
+    });
+  } catch (e) {
+    // fetch() itself failed (DNS, connection reset, timeout, redirect error).
+    // Transient — retry. Carry only the class name, never the message/URL.
+    throw toRetryable(e);
+  }
+
+  if (response.status === 401 || response.status === 403) {
     throw new AuthError();
+  }
+  if (response.status >= 500) {
+    throw new RetryableError(`HTTP ${response.status}`);
+  }
+  if (!response.ok) {
+    // Other 4xx — not auth, not retryable. Status only, no credentials.
+    throw new Error(`HTTP ${response.status}`);
+  }
+
+  const contentType = response.headers.get("content-type");
+  let buffer: ArrayBuffer;
+  try {
+    buffer = await response.arrayBuffer();
+  } catch (e) {
+    throw toRetryable(e);
+  }
+  const text = decodeBody(buffer, contentType);
+
+  // CellarTracker returns HTML (not CSV) both for a not-logged-in session
+  // (HTTP 200) and for maintenance/error pages. Only the marker means auth.
+  if (text.trimStart().startsWith("<")) {
+    if (text.includes(NOT_LOGGED_IN_MARKER)) {
+      throw new AuthError();
+    }
+    throw new ServiceError();
   }
 
   return text.replace(/\r\n/g, "\n");
+}
+
+/**
+ * Fetch a single table from CellarTracker as CSV text, retrying transient
+ * failures. Retries network errors and HTTP 5xx (2 retries, jittered exponential
+ * backoff ~1s then ~3s); never retries AuthError, ServiceError, or 4xx. Decodes
+ * using the charset from the Content-Type header, falling back to windows-1252.
+ *
+ * `opts.baseDelayMs` (default 1000) sets the backoff base; tests pass 0.
+ */
+export async function fetchTable(
+  user: string,
+  password: string,
+  extraParams: Record<string, string>,
+  opts: { baseDelayMs?: number } = {}
+): Promise<string> {
+  const params = new URLSearchParams({
+    User: user,
+    Password: password,
+    Format: "csv",
+    ...extraParams,
+  });
+  const url = `${BASE_URL}?${params.toString()}`;
+  const table = extraParams.Table ?? "unknown";
+  const baseDelayMs = opts.baseDelayMs ?? 1000;
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      return await fetchTableOnce(url, ATTEMPT_TIMEOUTS_MS[attempt - 1]);
+    } catch (e) {
+      // Auth/service failures are definitive — surface their clean messages as-is.
+      if (e instanceof AuthError || e instanceof ServiceError) {
+        throw e;
+      }
+      // Retry transient failures with jittered exponential backoff.
+      if (e instanceof RetryableError && attempt < MAX_ATTEMPTS) {
+        const delay = baseDelayMs * Math.pow(3, attempt - 1);
+        await sleep(delay * (0.85 + Math.random() * 0.3));
+        continue;
+      }
+      // Exhausted retries, or a non-retryable error (4xx). All errors reaching
+      // here carry a controlled message (status or class name) — never the URL,
+      // so the password embedded in its query string cannot leak.
+      const detail = e instanceof Error ? e.message : "unknown error";
+      const suffix = e instanceof RetryableError ? ` after ${MAX_ATTEMPTS} attempts` : "";
+      throw new Error(
+        `Failed to fetch table '${table}' from CellarTracker${suffix}: ${detail}`
+      );
+    }
+  }
+  // Unreachable: the loop returns or throws on the final attempt.
+  throw new Error(`Failed to fetch table '${table}' from CellarTracker`);
 }
 
 /** Save CSV text with timestamp and update _latest copy. */
