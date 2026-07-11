@@ -18,3 +18,5 @@
 - [x] Add diagnostic detail to credential-not-found errors (PR #38)
 - [x] #40 — Build staleness: add npm prepare script and rebuild dist (PR #55)
 - [x] #42 — Surface server version in refresh-data output (PR #55)
+- [x] #41 — Add CI on push/PR, Dependabot config, and SECURITY.md (PR #56)
+- [x] Maintainer settings for #41: branch protection on `main` requiring the CI check, Dependabot alerts + security updates, and "Private vulnerability reporting" all enabled
