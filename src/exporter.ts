@@ -182,7 +182,14 @@ export async function exportAll(
   return results;
 }
 
-/** Check the age of the newest _latest.csv in the cache directory. Returns ms or null. */
+/**
+ * Check the age of the OLDEST _latest.csv in the cache directory. Returns ms or null.
+ *
+ * Uses the oldest (not newest) mtime so a partial-failure refresh self-heals: if
+ * exportAll writes 7 fresh files before an 8th table's fetch rejects, the stale
+ * 8th file keeps the reported age high and the next ensureFresh re-exports,
+ * instead of the just-written siblings masking it as "fresh" (issue #43).
+ */
 export function getCacheAge(cacheDir: string): number | null {
   let files: string[];
   try {
@@ -194,12 +201,38 @@ export function getCacheAge(cacheDir: string): number | null {
   }
   if (files.length === 0) return null;
 
-  let newest = 0;
+  let oldest = Infinity;
   for (const f of files) {
     const mtime = fs.statSync(path.join(cacheDir, f)).mtimeMs;
-    if (mtime > newest) newest = mtime;
+    if (mtime < oldest) oldest = mtime;
   }
-  return Date.now() - newest;
+  return Date.now() - oldest;
+}
+
+/**
+ * In-flight refresh promises keyed by cache dir. MCP clients routinely fire tool
+ * calls in parallel; without this, N concurrent handlers each trigger their own
+ * exportAll (up to 8×N credentialed GETs). Concurrent callers for the same cache
+ * dir await one shared refresh; the slot clears on settle so the next call after
+ * success or failure starts fresh. Keyed by cacheDir to honor per-instance
+ * CT_CACHE_DIR overrides (issue #44).
+ */
+const inFlightRefreshes = new Map<string, Promise<Record<string, string>>>();
+
+/** exportAll with concurrent-refresh dedup per cache dir. */
+function dedupedExportAll(
+  username: string,
+  password: string,
+  cacheDir: string
+): Promise<Record<string, string>> {
+  const existing = inFlightRefreshes.get(cacheDir);
+  if (existing) return existing;
+
+  const refresh = exportAll(username, password, cacheDir).finally(() => {
+    inFlightRefreshes.delete(cacheDir);
+  });
+  inFlightRefreshes.set(cacheDir, refresh);
+  return refresh;
 }
 
 /** Export all tables only if cache is older than maxAgeHours. */
@@ -211,7 +244,7 @@ export async function ensureFresh(
 ): Promise<Record<string, string>> {
   const ageMs = getCacheAge(cacheDir);
   if (ageMs === null || ageMs > maxAgeHours * 3600 * 1000) {
-    return exportAll(username, password, cacheDir);
+    return dedupedExportAll(username, password, cacheDir);
   }
 
   // Cache is fresh — return existing latest paths
@@ -224,7 +257,7 @@ export async function ensureFresh(
   }
   // If any table is missing, re-export everything
   if (Object.keys(results).length < Object.keys(TABLES).length) {
-    return exportAll(username, password, cacheDir);
+    return dedupedExportAll(username, password, cacheDir);
   }
   return results;
 }
