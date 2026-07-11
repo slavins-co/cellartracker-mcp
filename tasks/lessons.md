@@ -41,3 +41,6 @@
 
 ## Synology Drive Sync Causes Spurious Mode-Only Git Diffs
 - Working inside a Synology Drive–synced folder, files can repeatedly show as modified in `git status` with a 644→755 mode-only diff (zero content change) — the sync client appears to re-touch permission bits independently of any edits, and it recurs even after stashing/discarding. `git config core.fileMode false` in the repo stops git from tracking permission bits and ends the noise. Verify via `git diff --raw` (look for `0000000` new-blob placeholders with identical old/new content) before assuming any "modified" file in this repo actually changed.
+
+## server.test.ts Has No Live Tool-Invocation Infrastructure
+- `src/__tests__/server.test.ts` tests `server.ts` entirely via static source-text assertions (`fs.readFileSync` + regex/substring checks on the source) — there is no `vi.mock`, no `createServer()` invocation, no mocked `getCredentials`/`exportAll` anywhere in the test suite. When adding a small, single-call-site feature to a tool handler, match this convention (a source-text assertion) rather than building new live-invocation mocking infrastructure — that's a much bigger, precedent-setting change than a one-line feature warrants. Building real tool-invocation tests would be a deliberate, separate decision, not something to introduce incidentally. (PR #55, issue #42)

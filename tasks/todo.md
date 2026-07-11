@@ -17,3 +17,4 @@
 - [x] #36 — Fix: server.ts reads version from package.json dynamically (PR #37)
 - [x] Add diagnostic detail to credential-not-found errors (PR #38)
 - [x] #40 — Build staleness: add npm prepare script and rebuild dist (PR #55)
+- [x] #42 — Surface server version in refresh-data output (PR #55)
