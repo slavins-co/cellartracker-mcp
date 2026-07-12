@@ -15,7 +15,11 @@ Merge order (minimizes lockfile rebase churn; dependabot auto-rebases between me
 6. #65 TypeScript 7 - merge WITH dist smoke test: vitest transforms src itself, so CI never validates tsc's emitted output. Smoke = `npm run build`, then a live client against `node dist/index.js` (`tools/list` + one `callTool`).
 7. #63 zod 4 - do NOT merge standalone; superseded by slice A (implemented on zod 4). Close with a comment when A merges.
 
-## Slice A - structured output on zod 4 (Opus, one PR, closes #63 and #54-item-2)
+## Slice A - structured output on zod 4 (SHIPPED 2026-07-12, PR #87; #63 closed as superseded)
+
+**Design amendment (ratified in PR #87 review):** invalid `group_by` in cellar-stats returns `isError: true` with the unchanged friendly text - NOT the success-shaped structured stats this document originally specified. Rationale: once clients prefer structuredContent, success-shaped output on rejected input is a silent partial failure; the model reads plausible stats and never learns its argument was refused. Apply the same rule to future input-rejection paths.
+
+Deferred out of slice A (tracked in todo.md): the `toTastingRow` "0.0" sentinel gap (needs a combined text+structured fix, violates byte-identical-text scope) and a shared `listPayload()` helper.
 
 **Migration:** all 13 tool registrations (11 data + 2 conditional credential tools) move from positional `server.tool(name, desc, schema, annotations, cb)` to `registerTool(name, { title, description, inputSchema, outputSchema, annotations }, cb)`. Schemas rewritten once, in zod 4 syntax.
 
