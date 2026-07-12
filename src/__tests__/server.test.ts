@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { formatScores } from "../server.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -28,5 +29,26 @@ describe("server version", () => {
     );
     // Must dynamically interpolate the version constant, not a hardcoded string
     expect(refreshDataBlock).toMatch(/Server: cellartracker-mcp v\$\{version\}/);
+  });
+});
+
+describe("formatScores", () => {
+  it("rounds long decimal scores to 1 decimal place", () => {
+    const row = { CT: "91.9254658385093", WA: "92.0833333333333" };
+    expect(formatScores(row, ["CT", "WA"])).toBe("CT:91.9, WA:92.1");
+  });
+
+  it("does not add a trailing .0 to whole-number scores", () => {
+    const row = { CT: "92" };
+    expect(formatScores(row, ["CT"])).toBe("CT:92");
+  });
+
+  it("still excludes literal zero-sentinel scores", () => {
+    const row = { CT: "0", WA: "0.0", WS: "95.5" };
+    expect(formatScores(row, ["CT", "WA", "WS"])).toBe("WS:95.5");
+  });
+
+  it("returns 'no scores' when nothing is present", () => {
+    expect(formatScores({}, ["CT"])).toBe("no scores");
   });
 });

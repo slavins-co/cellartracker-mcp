@@ -32,14 +32,15 @@ async function getFreshPaths(): Promise<Record<string, string>> {
 const ALL_SCORE_FIELDS = ["CT", "JR", "WA", "WS", "AG", "WE", "JG", "D", "JH", "VM"];
 const KEY_SCORE_FIELDS = ["CT", "WA", "WS", "JR", "AG"];
 
-/** Format score fields from a row into "CT:95, WA:93" style string. */
-function formatScores(row: Row, fields: string[] = ALL_SCORE_FIELDS): string {
+/** Format score fields from a row into "CT:95, WA:93" style string. Rounds to 1 decimal. */
+export function formatScores(row: Row, fields: string[] = ALL_SCORE_FIELDS): string {
   const parts: string[] = [];
   for (const field of fields) {
-    const val = (row[field] ?? "").trim();
-    if (val && val !== "0" && val !== "0.0") {
-      parts.push(`${field}:${val}`);
-    }
+    const raw = (row[field] ?? "").trim();
+    if (!raw || raw === "0" || raw === "0.0") continue;
+    const num = parseFloat(raw);
+    const val = isNaN(num) ? raw : String(Math.round(num * 10) / 10);
+    parts.push(`${field}:${val}`);
   }
   return parts.length > 0 ? parts.join(", ") : "no scores";
 }
