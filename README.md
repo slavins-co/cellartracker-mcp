@@ -119,7 +119,7 @@ The Claude Code plugin stores credentials as plaintext in `~/.config/cellartrack
 
 - **Use a unique password** for CellarTracker. Do not reuse a password from other services.
 - **Prefer environment variables** over the `setup-credentials` tool if you want to avoid persisting credentials to disk.
-- **Pin to a specific version** in your MCP config (e.g., `cellartracker-mcp@0.3.0`) rather than relying on `@latest`.
+- **Pin to a specific version** in your MCP config (e.g., `cellartracker-mcp@0.4.0`) rather than relying on `@latest`.
 
 ## Development
 
