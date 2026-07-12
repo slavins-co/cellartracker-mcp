@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import { createServer, formatScores } from "../server.js";
+import { createServer, formatScores, wineUrl } from "../server.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -57,6 +57,45 @@ describe("formatScores", () => {
 
   it("returns 'no scores' when nothing is present", () => {
     expect(formatScores({}, ["CT"])).toBe("no scores");
+  });
+});
+
+describe("wineUrl", () => {
+  it("builds a wine.asp URL from a numeric iWine id", () => {
+    expect(wineUrl("4724491")).toBe("https://www.cellartracker.com/wine.asp?iWine=4724491");
+  });
+
+  it("returns undefined for a missing iWine", () => {
+    expect(wineUrl(undefined)).toBeUndefined();
+  });
+
+  it("returns undefined for an empty or whitespace-only iWine", () => {
+    expect(wineUrl("")).toBeUndefined();
+    expect(wineUrl("   ")).toBeUndefined();
+  });
+});
+
+describe("fmtWine deep link", () => {
+  it("calls wineUrl and gates the Link line on its result", () => {
+    const serverSrc = fs.readFileSync(path.resolve(__dirname, "../server.ts"), "utf-8");
+    const block = serverSrc.slice(
+      serverSrc.indexOf("function fmtWine"),
+      serverSrc.indexOf("function maturityLabel")
+    );
+    expect(block).toMatch(/wineUrl\(row\.iWine\)/);
+    expect(block).toMatch(/if \(link\) lines\.push\(`\s*Link: \$\{link\}`\)/);
+  });
+});
+
+describe("drinking-recommendations deep link", () => {
+  it("calls wineUrl and gates the Link line on its result", () => {
+    const serverSrc = fs.readFileSync(path.resolve(__dirname, "../server.ts"), "utf-8");
+    const block = serverSrc.slice(
+      serverSrc.indexOf('"drinking-recommendations"'),
+      serverSrc.indexOf('"cellar-stats"')
+    );
+    expect(block).toMatch(/wineUrl\(row\.iWine\)/);
+    expect(block).toMatch(/if \(link\) lines\.push\(`\s*Link: \$\{link\}`\)/);
   });
 });
 
