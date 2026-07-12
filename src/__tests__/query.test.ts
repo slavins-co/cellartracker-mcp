@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import {
   aggregate,
   parseCsv,
@@ -160,6 +160,35 @@ describe("toIsoDate", () => {
 
   it("handles double-digit month and day", () => {
     expect(toIsoDate("12/25/2023")).toBe("2023-12-25");
+  });
+
+  describe("date-parse warning", () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it("logs a single stderr warning for a repeated unparseable value", () => {
+      const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+      toIsoDate("bogus-date-46a");
+      toIsoDate("bogus-date-46a");
+      toIsoDate("bogus-date-46a");
+      expect(spy).toHaveBeenCalledTimes(1);
+    });
+
+    it("stays silent for empty or undefined input", () => {
+      const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+      toIsoDate("");
+      toIsoDate(undefined);
+      toIsoDate("   ");
+      expect(spy).not.toHaveBeenCalled();
+    });
+
+    it("stays silent for parseable input", () => {
+      const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+      toIsoDate("3/14/2026");
+      toIsoDate("2026-03-14");
+      expect(spy).not.toHaveBeenCalled();
+    });
   });
 });
 
