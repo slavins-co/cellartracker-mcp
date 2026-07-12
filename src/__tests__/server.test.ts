@@ -5,7 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import { createServer, formatScores, wineUrl, scoresRecord, toWineRow, clampOffset, paginationFooter } from "../server.js";
+import { createServer, formatScores, wineUrl, scoresRecord, toWineRow, clampOffset, clampLimit, paginationFooter } from "../server.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -77,10 +77,33 @@ describe("clampOffset", () => {
   });
 });
 
+describe("clampLimit", () => {
+  it("passes through a positive integer", () => {
+    expect(clampLimit(5, 25)).toBe(5);
+  });
+
+  it("floors a non-integer limit", () => {
+    expect(clampLimit(5.7, 25)).toBe(5);
+  });
+
+  it("falls back to the default for undefined, zero, and negative values", () => {
+    expect(clampLimit(undefined, 25)).toBe(25);
+    expect(clampLimit(0, 25)).toBe(25);
+    expect(clampLimit(-3, 25)).toBe(25);
+  });
+});
+
 describe("paginationFooter", () => {
   it("returns undefined when the page reaches the end of the result set", () => {
     expect(paginationFooter(0, 3, 3)).toBeUndefined();
     expect(paginationFooter(1, 2, 3)).toBeUndefined();
+  });
+
+  it("returns undefined for an empty page, even mid-set (no garbled backwards range)", () => {
+    // Guards the case a caller reaches with an out-of-range offset (shownCount 0,
+    // offset < total) — without this, the arithmetic would emit a backwards range
+    // like "(Showing 2-1 of 5...)".
+    expect(paginationFooter(1, 0, 5)).toBeUndefined();
   });
 
   it("formats a 1-indexed range and the next offset when more results remain", () => {
@@ -602,6 +625,14 @@ describe("structured output — data tools (fixture cache)", () => {
     expect(text).not.toContain("No bottles found matching your criteria.");
   });
 
+  it("bottle-details max_results=0 falls back to the default instead of returning an empty page", async () => {
+    const r = await call("bottle-details", { state: "all", max_results: 0 });
+    const sc = r.structuredContent as { total: number; count: number };
+    expect(sc.total).toBe(3);
+    expect(sc.count).toBe(3);
+    expect(textOf(r)).not.toContain("Try a smaller offset");
+  });
+
   it("get-wishlist counts only *Wishlist rows", async () => {
     const r = await call("get-wishlist", {});
     const sc = r.structuredContent as { count: number; wines: { wine: string; vintage: string }[] };
@@ -644,6 +675,14 @@ describe("structured output — data tools (fixture cache)", () => {
     expect(text).not.toContain("No consumption records found matching your criteria.");
   });
 
+  it("consumption-history max_results=0 falls back to the default instead of returning an empty page", async () => {
+    const r = await call("consumption-history", { max_results: 0 });
+    const sc = r.structuredContent as { total: number; count: number };
+    expect(sc.total).toBe(2);
+    expect(sc.count).toBe(2);
+    expect(textOf(r)).not.toContain("Try a smaller offset");
+  });
+
   it("tasting-notes returns structured rows agreeing with the count", async () => {
     const r = await call("tasting-notes", {});
     const sc = r.structuredContent as { total: number; count: number };
@@ -672,6 +711,14 @@ describe("structured output — data tools (fixture cache)", () => {
     const text = textOf(r);
     expect(text).toContain("offset 10");
     expect(text).not.toContain("No tasting notes found matching your criteria.");
+  });
+
+  it("tasting-notes max_results=0 falls back to the default instead of returning an empty page", async () => {
+    const r = await call("tasting-notes", { max_results: 0 });
+    const sc = r.structuredContent as { total: number; count: number };
+    expect(sc.total).toBe(2);
+    expect(sc.count).toBe(2);
+    expect(textOf(r)).not.toContain("Try a smaller offset");
   });
 });
 

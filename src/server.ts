@@ -89,12 +89,18 @@ export function clampOffset(offset: number | undefined): number {
   return offset && offset > 0 ? Math.floor(offset) : 0;
 }
 
+/** Clamp a caller-supplied result-page size to a positive integer, falling back to `def`. */
+export function clampLimit(maxResults: number | undefined, def: number): number {
+  return maxResults && maxResults > 0 ? Math.floor(maxResults) : def;
+}
+
 /**
  * Build the "(Showing X-Y of Z. Pass offset=Y for the next page.)" footer for a
- * paginated list, or undefined when the current page reaches the end of the
- * result set (nothing left to page through).
+ * paginated list, or undefined when the page is empty or reaches the end of
+ * the result set (nothing left to page through).
  */
 export function paginationFooter(offset: number, shownCount: number, total: number): string | undefined {
+  if (shownCount === 0) return undefined;
   const shownTo = offset + shownCount;
   if (shownTo >= total) return undefined;
   return `(Showing ${offset + 1}-${shownTo} of ${total}. Pass offset=${shownTo} for the next page.)`;
@@ -400,21 +406,13 @@ export function createServer(): McpServer {
       const off = clampOffset(offset);
       const shown = results.slice(off, off + 25);
 
-      if (total === 0) {
-        return {
-          content: [{ type: "text", text: "No wines found matching your search criteria." }],
-          structuredContent: { total: 0, offset: off, count: 0, wines: [] },
-        };
-      }
-
       if (shown.length === 0) {
+        const text =
+          total === 0
+            ? "No wines found matching your search criteria."
+            : `No wines at offset ${off} (${total} total match your search). Try a smaller offset.`;
         return {
-          content: [
-            {
-              type: "text",
-              text: `No wines at offset ${off} (${total} total match your search). Try a smaller offset.`,
-            },
-          ],
+          content: [{ type: "text", text }],
           structuredContent: { total, offset: off, count: 0, wines: [] },
         };
       }
@@ -838,8 +836,7 @@ export function createServer(): McpServer {
       annotations: { title: "Bottle Details", readOnlyHint: true, openWorldHint: true },
     },
     async ({ query, location, bin, size, barcode, state, max_results, offset }) => {
-      // Guard non-positive max_results (0/negative would corrupt slice(0, n)).
-      const maxResults = max_results && max_results > 0 ? max_results : 25;
+      const maxResults = clampLimit(max_results, 25);
       const off = clampOffset(offset);
       const paths = await getFreshPaths();
       const bottleRows = loadTable(paths.Bottles);
@@ -1007,7 +1004,7 @@ export function createServer(): McpServer {
       annotations: { title: "Consumption History", readOnlyHint: true, openWorldHint: true },
     },
     async ({ query, color, date_from, date_to, max_results, offset }) => {
-      const maxResults = max_results ?? 25;
+      const maxResults = clampLimit(max_results, 25);
       const off = clampOffset(offset);
       const paths = await getFreshPaths();
       const consumedRows = loadTable(paths.Consumed);
@@ -1031,21 +1028,13 @@ export function createServer(): McpServer {
       const total = results.length;
       const shown = results.slice(off, off + maxResults);
 
-      if (total === 0) {
-        return {
-          content: [{ type: "text", text: "No consumption records found matching your criteria." }],
-          structuredContent: { total: 0, offset: off, count: 0, rows: [] },
-        };
-      }
-
       if (shown.length === 0) {
+        const text =
+          total === 0
+            ? "No consumption records found matching your criteria."
+            : `No consumption records at offset ${off} (${total} total match your criteria). Try a smaller offset.`;
         return {
-          content: [
-            {
-              type: "text",
-              text: `No consumption records at offset ${off} (${total} total match your criteria). Try a smaller offset.`,
-            },
-          ],
+          content: [{ type: "text", text }],
           structuredContent: { total, offset: off, count: 0, rows: [] },
         };
       }
@@ -1097,7 +1086,7 @@ export function createServer(): McpServer {
       annotations: { title: "Tasting Notes", readOnlyHint: true, openWorldHint: true },
     },
     async ({ query, color, min_rating, max_results, offset }) => {
-      const maxResults = max_results ?? 25;
+      const maxResults = clampLimit(max_results, 25);
       const off = clampOffset(offset);
       const paths = await getFreshPaths();
       const notesRows = loadTable(paths.Notes);
@@ -1121,21 +1110,13 @@ export function createServer(): McpServer {
       const total = results.length;
       const shown = results.slice(off, off + maxResults);
 
-      if (total === 0) {
-        return {
-          content: [{ type: "text", text: "No tasting notes found matching your criteria." }],
-          structuredContent: { total: 0, offset: off, count: 0, rows: [] },
-        };
-      }
-
       if (shown.length === 0) {
+        const text =
+          total === 0
+            ? "No tasting notes found matching your criteria."
+            : `No tasting notes at offset ${off} (${total} total match your criteria). Try a smaller offset.`;
         return {
-          content: [
-            {
-              type: "text",
-              text: `No tasting notes at offset ${off} (${total} total match your criteria). Try a smaller offset.`,
-            },
-          ],
+          content: [{ type: "text", text }],
           structuredContent: { total, offset: off, count: 0, rows: [] },
         };
       }
