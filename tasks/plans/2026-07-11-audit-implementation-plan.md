@@ -4,6 +4,8 @@ Source: full audit in the vault at `_System/Audits/2026-07-11-CellarTracker-MCP-
 
 Status 2026-07-11 EOD: Phase 1 complete - #40/#41/#42 closed, PR #39 merged (HOLD), v0.3.2 released to npm + .mcpb. Session recap: vault `1-Stream/Session-Recaps/2026-07-11-cellartracker-external-pr-and-v032-release.md`.
 
+Status 2026-07-12: **Phase 2 fully implemented** - #43/#44 (PR #72), #45/#47 (PR #73), #46 incl. vintageLabel (PR #74), #48 (PR #75), #69 (PR #76). All merged to main, CI green, branch protection active (requires `test` check), suite at 124 tests. **v0.4.0 NOT yet released** - version files still 0.3.2. Remaining before registry: optional annotations pull-forward, version bump, release, post-release verification.
+
 ## Decisions
 
 **Read-only: CONFIRMED (2026-07-11).** The server stays read-only. Rationale: CellarTracker has no sanctioned write path - exports are explicitly one-way, the private partner API is closed, and the only project that writes back (RoarKri/mcp-cellartracker) scrapes the authenticated web app and carries WAF-detection code because it breaks. With full-account credentials, a write bug corrupts real cellar data; read-only caps the blast radius at disclosure. Deep links (#52) are the read-only-compatible answer to "let me act on a recommendation."
@@ -22,14 +24,14 @@ Order matters: #40 first (it fixes the class of defect that makes everything els
 | - | **Review PR #39** (recent-deliveries over `Purchase`.Delivered, external contributor) - after #41 so CI runs on it | S |
 
 Maintainer-only actions (settings/accounts, not code sessions):
-- [ ] Enable branch protection on main requiring the new CI check (after #41).
-- [ ] Enable Dependabot alerts + security updates in repo settings.
+- [x] Enable branch protection on main requiring the new CI check (verified 2026-07-12: `test` required).
+- [x] Dependabot config in place (grouping + hold-majors, 2026-07-11); verify the alerts/security-updates toggle in repo settings if not already on.
 - [ ] Deprecate PyPI `cellartracker-mcp` 0.1.0 with a pointer to npm (needs PyPI account).
 - [ ] One manual read of CellarTracker ToS re: automated access (their terms page 403s automated fetches).
 
-## Phase 2 - Robustness (ship as 0.4.0)
+## Phase 2 - Robustness (IMPLEMENTED 2026-07-12; ships as 0.4.0, release pending)
 
-All independent; any order. #43 and #47 both touch exporter.ts error paths - do #43 before #47 if running back-to-back.
+All merged via PRs #72-#76 in the planned groupings. #43 and #47 both touch exporter.ts error paths - do #43 before #47 if running back-to-back.
 
 | # | Issue | Size |
 |---|---|---|
@@ -92,17 +94,18 @@ Context: the server is not in the official MCP registry (registry.modelcontextpr
 
 | Order | PR / action | Issues | Model | Notes |
 |---|---|---|---|---|
-| 1 | Build staleness | #40 + #42 | Sonnet | `prepare` script prevents stale builds; version line in refresh-data makes future staleness visible. #40's optional verify-versions dist check: **consciously skipped** (2026-07-11) - a manual check only protects the dev who remembers to run it, and Synology Drive mtime churn makes it false-positive prone. Do not resurrect. |
-| 2 | CI + hygiene | #41 | Sonnet | Own PR so the workflow validates itself on the PR that adds it. Then: branch protection requiring the check, enable Dependabot alerts. |
+| 1 | ✅ Build staleness | #40 + #42 | Sonnet | Done 2026-07-11. `prepare` script prevents stale builds; version line in refresh-data makes future staleness visible. #40's optional verify-versions dist check: **consciously skipped** (2026-07-11) - a manual check only protects the dev who remembers to run it, and Synology Drive mtime churn makes it false-positive prone. Do not resurrect. |
+| 2 | ✅ CI + hygiene | #41 | Sonnet | Done 2026-07-11; branch protection verified active 2026-07-12 (`test` required). |
 | 3 | PR #39 review | - | Opus | **Reviewed 2026-07-11 (HOLD).** Holding comment posted 07-11 (done). **Table correction:** it queries the `Purchase` table (`Delivered=True` rows by `DeliveryDate`), *not* Pending - the contributor's choice is correct. The M/D/YYYY date trap and the `Delivered="True"` (capital-T) casing are both already handled (`toIsoDate` + `.toLowerCase()`) - verified against live data. `maintainerCanModify=true`, so push two fixups to `patch-1`: harden a test fixture `"true"`→`"True"` (locks case-insensitivity), fix cosmetic indent/whitespace. Vintage `1001`→`NV` kept (see #46). Merge (merge-commit or squash preserving contributor authorship) after CI goes green - branch predates the workflow so `statusCheckRollup` is empty until the branch is updated. Do NOT run `/implement` on it (that re-forks the work and erases authorship). |
-| - | **Release 0.3.2** | | | Publish workflow handles npm + .mcpb. |
-| 4 | Refresh reliability | #43 + #44 | Opus | Interacting behaviors: dedup changes who observes a partial-failure refresh. |
-| 5 | Fetch resilience | #45 + #47 | Opus | One rewrite of `fetchTable`: retry logic depends on #45's error classification (never retry AuthError). |
-| 6 | Small batch | #46 | Sonnet | Independent trio, batched by design. **Add a 4th item (decided in #39 review, 2026-07-11):** extract `vintageLabel(row)` (`1001`/empty → `NV`) into query.ts and propagate to all tools. PR #39 introduced the correct handling; the other 5 tools render raw `1001` via `row.Vintage ?? "NV"`, which never fires for the string `"1001"`. |
-| 7 | Diacritic search | #48 | Sonnet | Self-contained matching helper + three call sites. recent-deliveries' store filter routes through `search()`, so it inherits the fix - no extra call site. |
-| 8 | Publish dry-run CI | #69 | Sonnet | Must land **before the tag** - release-only workflows hide their bugs until release day (the `prepare`/`--omit=dev` collision proved it on the first v0.3.2 attempt). |
-| - | **Release 0.4.0** | | | |
-| - | **Registry submission** | | | Gate reached. Pull `readOnlyHint` forward from #54; check Glama's install flag first. |
+| - | ✅ **Release 0.3.2** | | | Shipped 2026-07-11 (second attempt; see #69 origin). |
+| 4 | ✅ Refresh reliability | #43 + #44 | Opus | Done - PR #72 (2026-07-12). |
+| 5 | ✅ Fetch resilience | #45 + #47 | Opus | Done - PR #73 (2026-07-12). |
+| 6 | ✅ Small batch (4 items incl. vintageLabel) | #46 | Sonnet | Done - PR #74 (2026-07-12). |
+| 7 | ✅ Diacritic search | #48 | Sonnet | Done - PR #75 (2026-07-12). |
+| 8 | ✅ Publish dry-run CI | #69 | Sonnet | Done - PR #76 (2026-07-12), landed before the tag as required. |
+| 8.5 | Annotations pull-forward (pre-tag, optional) | part of #54 | Sonnet | Add `readOnlyHint` (and `title`) to all tool registrations so the 0.4.0 release - the version the registry listing points at - already carries them. Do NOT pull the rest of #54 (structuredContent/pagination) forward. |
+| - | **Release 0.4.0** | | | Bump all four synced version files; release workflow publishes npm + .mcpb. Token refreshed 2026-07-11; packaging path now CI-guarded (#69). **Post-release verification:** restart the MCP session and run `refresh-data` - it must print v0.4.0 (this exercises #42's version line, proving the staleness class dead). If it shows 0.3.x, clear the stale npx cache entry (`~/.npm/_npx/*/node_modules/cellartracker-mcp` resolved from the local path). |
+| - | **Registry submission** | | | Gate reached at tag. `server.json` + `mcp-publisher` (GitHub auth, namespace io.github.slavins-co); extend `verify-versions` to cover server.json as the 5th version location; check Glama's "cannot be installed" flag while at it. |
 | 9 | Docs sync | #53 | Sonnet | Do FIRST in Phase 3 - #49/#50/#51 touch the same skill docs; fix drift before adding to them. Scope includes recent-deliveries (see issue comment). |
 | 10 | Orders & deliveries | #70 + #71 | Sonnet | Same domain (Pending/deliveries), same server.ts neighborhood, both small. #70 reuses recent-deliveries' conventions. |
 | 11 | Bottles tool | #49 | Opus | Plan-review first (Bottles vs Inventory, tool UX). PR #39 dependency: cleared (merged 2026-07-11). |
