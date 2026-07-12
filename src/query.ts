@@ -52,14 +52,14 @@ export function foldDiacritics(s: string): string {
  * Example: search(rows, { Color: "red", Region: "burg" })
  */
 export function search(rows: Row[], filters: Record<string, string | undefined>): Row[] {
-  const activeFilters = Object.entries(filters).filter(
+  const activeFilters = (Object.entries(filters).filter(
     ([, v]) => v !== undefined && v !== ""
-  ) as [string, string][];
+  ) as [string, string][]).map(([col, term]) => [col, foldDiacritics(term)] as [string, string]);
   if (activeFilters.length === 0) return rows;
 
   return rows.filter((row) =>
     activeFilters.every(([col, term]) =>
-      foldDiacritics(row[col] ?? "").includes(foldDiacritics(term))
+      foldDiacritics(row[col] ?? "").includes(term)
     )
   );
 }
