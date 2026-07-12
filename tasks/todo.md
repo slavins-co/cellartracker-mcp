@@ -30,3 +30,7 @@
 - [ ] Follow-up (from #48): LETTERFORM_FOLDS covers the letterforms present/plausible in the current data (German ß + European ligatures). Explicitly deferred: Greek-script producer names (none in data; would need transliteration, not a char map) and other Latin letterforms (ł/đ/þ/ð/ı — absent from data). Extend the map if a real miss surfaces.
 - [x] #69 — CI: dry-run the publish packaging path (scripts/pack-check.sh shared by ci.yml + publish.yml) (PR #76)
 - [ ] Follow-up (from #69): packaging-dry-run job duplicates npm ci/build from the sibling test job instead of sharing via artifact upload/download. Considered and skipped (disproportionate complexity for CI-minutes saved on a project this size) — revisit if CI minutes become a real constraint.
+- [x] #53 — Docs sync: skill tool names (hyphens), missing tools added, stale export-script/charset wording fixed, README wishlist wording corrected (PR #77)
+- [x] #54 (partial) — Tool annotations: readOnlyHint/openWorldHint/destructiveHint + titles on all 11 tools via SDK 1.29's tool() overload (PR #77)
+- [ ] #54 (remaining) — Structured output (outputSchema/structuredContent, consider registerTool), pagination on search-cellar/consumption-history/tasting-notes, optional CSV-as-resources
+- [ ] Follow-up (from #54/PR #77): `refresh-data`'s `readOnlyHint: true` is debatable — it writes fresh CSVs to the local cache and hits the network, not strictly read-only. Kept per the issue's explicit spec; no MCP client currently gates on the hint. Revisit if client trust-signal behavior starts depending on it.
