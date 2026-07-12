@@ -26,3 +26,5 @@
 - [x] #45 — Auth detection via exact not-logged-in marker; other HTML → ServiceError (PR #73)
 - [x] #47 — Retry network errors + 5xx with jittered backoff in fetchTable; tiered timeouts bound worst case (PR #73)
 - [x] #46 — Small robustness batch: scoped cache deletion, score rounding, date-parse warning, vintageLabel() extraction (PR #74)
+- [x] #48 — Diacritic-insensitive search: foldDiacritics() helper applied to search(), region filter, wishlist filter (PR #75)
+- [ ] Follow-up (from #48): foldDiacritics() only handles NFD-decomposable diacritics (é, ô, ü) — standalone letterforms with no combining-mark decomposition (ø, æ, ł, đ, ß) still don't fold (e.g. "strasse" won't match "Straße"). Low priority unless it surfaces in practice; would need an explicit substitution map.
