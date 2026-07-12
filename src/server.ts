@@ -1,5 +1,5 @@
 /**
- * CellarTracker MCP Server — 11 tools for querying wine cellar data.
+ * CellarTracker MCP Server — 12 tools for querying wine cellar data.
  */
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -18,6 +18,8 @@ import {
   drinkingPriority,
   foldDiacritics,
   loadTable,
+  mostRecentDeliveryDate,
+  pendingOrders,
   search,
   spendSummary,
   toIsoDate,
@@ -110,7 +112,7 @@ function maturityLabel(row: Row, currentYear: number): string {
 const require = createRequire(import.meta.url);
 const { version } = require("../package.json") as { version: string };
 
-/** Create and configure the MCP server with all 10 tools. */
+/** Create and configure the MCP server with all 12 tools. */
 export function createServer(): McpServer {
   const server = new McpServer({
     name: "cellartracker",
@@ -427,10 +429,52 @@ export function createServer(): McpServer {
 
       if (summary.deliveries.length === 0) {
         lines.push("No deliveries in this window.");
+        const mostRecent = mostRecentDeliveryDate(scoped);
+        if (mostRecent) {
+          lines.push(`Most recent delivery was ${mostRecent} — pass date_from to widen the range.`);
+        }
       } else {
         for (const r of summary.deliveries) {
           const vint = vintageLabel(r);
           lines.push(`  ${toIsoDate(r.DeliveryDate)}  ${vint} ${r.Wine ?? "Unknown"}`);
+          lines.push(`    $${r.Price ?? "?"} x${r.Quantity ?? "1"}` + (r.StoreName ? ` @ ${r.StoreName}` : ""));
+        }
+      }
+
+      return { content: [{ type: "text", text: lines.join("\n") }] };
+    }
+  );
+
+  // --- incoming-orders ---
+  server.tool(
+    "incoming-orders",
+    "List wines ordered but not yet received, from the Pending table. " +
+      "Sorted oldest order first. Use this for 'what's on the way', unlike " +
+      "recent-deliveries which shows what has already arrived.",
+    {
+      store: z.string().optional().describe("Store name filter"),
+    },
+    { title: "Incoming Orders", readOnlyHint: true, openWorldHint: true },
+    async ({ store }) => {
+      const paths = await getFreshPaths();
+      const pendingRows = loadTable(paths.Pending);
+
+      const scoped = store ? search(pendingRows, { StoreName: store }) : pendingRows;
+      const summary = pendingOrders(scoped);
+
+      const lines = [
+        "Incoming Orders",
+        "=".repeat(40),
+        `Lines: ${summary.line_count}   Bottles: ${summary.bottle_count}`,
+        "",
+      ];
+
+      if (summary.orders.length === 0) {
+        lines.push("No pending orders.");
+      } else {
+        for (const r of summary.orders) {
+          const vint = vintageLabel(r);
+          lines.push(`  ${toIsoDate(r.PurchaseDate)}  ${vint} ${r.Wine ?? "Unknown"}`);
           lines.push(`    $${r.Price ?? "?"} x${r.Quantity ?? "1"}` + (r.StoreName ? ` @ ${r.StoreName}` : ""));
         }
       }
