@@ -4,9 +4,61 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import { createServer, formatScores, wineUrl } from "../server.js";
+import { createServer, formatScores, wineUrl, scoresRecord, toWineRow } from "../server.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+describe("scoresRecord", () => {
+  it("returns a numeric record rounded to 1 decimal", () => {
+    expect(scoresRecord({ CT: "91.9254658385093", WA: "92.0833333333333" }, ["CT", "WA"])).toEqual({
+      CT: 91.9,
+      WA: 92.1,
+    });
+  });
+
+  it("drops the literal and near-zero score sentinels", () => {
+    expect(scoresRecord({ CT: "0", WA: "0.0", WS: "0.04", AG: "95.5" }, ["CT", "WA", "WS", "AG"])).toEqual({
+      AG: 95.5,
+    });
+  });
+
+  it("returns undefined when no numeric scores are present", () => {
+    expect(scoresRecord({ CT: "0" }, ["CT"])).toBeUndefined();
+    expect(scoresRecord({}, ["CT"])).toBeUndefined();
+  });
+});
+
+describe("toWineRow", () => {
+  it("maps required fields, numeric quantity/price, and a deep-link url", () => {
+    const row = {
+      iWine: "4724491",
+      Wine: "Château Test",
+      Vintage: "2018",
+      Quantity: "3",
+      Price: "45.50",
+      Color: "Red",
+      Region: "Bordeaux",
+    };
+    const out = toWineRow(row);
+    expect(out.iWine).toBe("4724491");
+    expect(out.wine).toBe("Château Test");
+    expect(out.vintage).toBe("2018");
+    expect(out.quantity).toBe(3);
+    expect(out.price).toBe(45.5);
+    expect(out.color).toBe("Red");
+    expect(out.region).toBe("Bordeaux");
+    expect(out.url).toBe("https://www.cellartracker.com/wine.asp?iWine=4724491");
+  });
+
+  it("normalizes the NV vintage sentinel and omits absent optionals", () => {
+    const out = toWineRow({ iWine: "9", Wine: "NV Champagne", Vintage: "1001" });
+    expect(out.vintage).toBe("NV");
+    expect(out.quantity).toBeUndefined();
+    expect(out.price).toBeUndefined();
+    expect(out.location).toBeUndefined();
+    expect("color" in out).toBe(false);
+  });
+});
 
 describe("server version", () => {
   it("reads version from package.json, not a hardcoded string", () => {

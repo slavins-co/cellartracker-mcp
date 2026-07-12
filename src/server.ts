@@ -11,6 +11,27 @@ import { createRequire } from "node:module";
 import { clearUserData, getCacheDir, getConfigDir, getCredentials, looksLikeTemplate } from "./config.js";
 import { AuthError, TABLES, ensureFresh, exportAll, fetchTable } from "./exporter.js";
 import {
+  type WineRow,
+  type PurchaseRow,
+  type BottleRow,
+  type WishlistRow,
+  type ConsumptionRow,
+  type TastingRow,
+  searchCellarShape,
+  drinkingRecommendationsShape,
+  cellarStatsShape,
+  purchaseHistoryShape,
+  recentDeliveriesShape,
+  incomingOrdersShape,
+  bottleDetailsShape,
+  getWishlistShape,
+  consumptionHistoryShape,
+  tastingNotesShape,
+  refreshDataShape,
+  setupCredentialsShape,
+  clearUserDataShape,
+} from "./schemas.js";
+import {
   type Row,
   aggregate,
   bottleDetails,
@@ -60,6 +81,87 @@ export function formatScores(row: Row, fields: string[] = ALL_SCORE_FIELDS): str
 export function wineUrl(iWine: string | undefined): string | undefined {
   const id = (iWine ?? "").trim();
   return id ? `https://www.cellartracker.com/wine.asp?iWine=${id}` : undefined;
+}
+
+/** Trimmed non-empty string, else undefined — for omit-when-absent structured fields. */
+function str(v: string | undefined): string | undefined {
+  const s = (v ?? "").trim();
+  return s ? s : undefined;
+}
+
+/** parseFloat that yields undefined for blank/non-finite values. */
+function numOrUndef(v: string | undefined): number | undefined {
+  const s = (v ?? "").trim();
+  if (!s) return undefined;
+  const n = parseFloat(s);
+  return Number.isFinite(n) ? n : undefined;
+}
+
+/** parseInt that yields undefined for blank/non-finite values. */
+function intOrUndef(v: string | undefined): number | undefined {
+  const s = (v ?? "").trim();
+  if (!s) return undefined;
+  const n = parseInt(s, 10);
+  return Number.isFinite(n) ? n : undefined;
+}
+
+/**
+ * Numeric mirror of formatScores: parse each score field, round to 1 decimal,
+ * drop the "no score" sentinel (raw 0/0.0 and near-zero values that round to 0)
+ * and any non-numeric entry. Returns undefined when nothing survives.
+ */
+export function scoresRecord(row: Row, fields: string[] = ALL_SCORE_FIELDS): Record<string, number> | undefined {
+  const out: Record<string, number> = {};
+  for (const field of fields) {
+    const raw = (row[field] ?? "").trim();
+    if (!raw) continue;
+    const num = parseFloat(raw);
+    if (isNaN(num)) continue;
+    const rounded = Math.round(num * 10) / 10;
+    if (rounded === 0) continue;
+    out[field] = rounded;
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+/**
+ * Map a (possibly Availability-joined) List row to the structured WineRow shape.
+ * Mirrors fmtWine's field selection; only iWine/wine/vintage are guaranteed,
+ * every other field is omitted when the source is blank.
+ */
+export function toWineRow(row: Row): WineRow {
+  const out: WineRow = {
+    iWine: (row.iWine ?? "").trim(),
+    wine: row.Wine ?? row.WineName ?? "Unknown",
+    vintage: vintageLabel(row),
+  };
+  const quantity = intOrUndef(row.Quantity ?? row.QtyOH);
+  if (quantity !== undefined) out.quantity = quantity;
+  const location = str(row.Location);
+  if (location) out.location = location;
+  const bin = str(row.Bin);
+  if (bin) out.bin = bin;
+  const price = numOrUndef(row.Price);
+  if (price !== undefined) out.price = price;
+  const valuation = numOrUndef(row.Valuation);
+  if (valuation !== undefined) out.valuation = valuation;
+  const color = str(row.Color);
+  if (color) out.color = color;
+  const country = str(row.Country);
+  if (country) out.country = country;
+  const region = str(row.Region);
+  if (region) out.region = region;
+  const varietal = str(row.Varietal);
+  if (varietal) out.varietal = varietal;
+  const beginConsume = str(row.BeginConsume ?? row.BeginDrink);
+  if (beginConsume) out.beginConsume = beginConsume;
+  const endConsume = str(row.EndConsume ?? row.EndDrink);
+  if (endConsume) out.endConsume = endConsume;
+  const scores = scoresRecord(row);
+  if (scores) out.scores = scores;
+  const url = wineUrl(row.iWine);
+  if (url) out.url = url;
+  return out;
 }
 
 /** Format a single wine row into readable text. */
