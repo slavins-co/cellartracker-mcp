@@ -277,6 +277,44 @@ describe("clearUserData", () => {
     expect(fs.readdirSync(cacheDir)).toHaveLength(0);
   });
 
+  it("does not delete unrelated files in a shared cache dir", () => {
+    const cacheDir = path.join(fakeHome, ".cache", "cellartracker-mcp", "exports");
+    fs.mkdirSync(cacheDir, { recursive: true });
+    fs.writeFileSync(path.join(cacheDir, "List_latest.csv"), "data");
+    fs.writeFileSync(path.join(cacheDir, "unrelated-file.txt"), "do not touch");
+    fs.writeFileSync(path.join(cacheDir, "SomeOtherApp_data.json"), "{}");
+
+    const result = clearUserData({ credentials: false, cache: true });
+    expect(result.cacheFilesRemoved).toBe(1);
+    const remaining = fs.readdirSync(cacheDir);
+    expect(remaining).toContain("unrelated-file.txt");
+    expect(remaining).toContain("SomeOtherApp_data.json");
+    expect(remaining).not.toContain("List_latest.csv");
+  });
+
+  it("does not delete a same-prefix csv that isn't a real table export", () => {
+    const cacheDir = path.join(fakeHome, ".cache", "cellartracker-mcp", "exports");
+    fs.mkdirSync(cacheDir, { recursive: true });
+    fs.writeFileSync(path.join(cacheDir, "List_latest.csv"), "data");
+    fs.writeFileSync(path.join(cacheDir, "List_report_for_taxes.csv"), "not a real export");
+
+    const result = clearUserData({ credentials: false, cache: true });
+    expect(result.cacheFilesRemoved).toBe(1);
+    const remaining = fs.readdirSync(cacheDir);
+    expect(remaining).toContain("List_report_for_taxes.csv");
+    expect(remaining).not.toContain("List_latest.csv");
+  });
+
+  it("deletes timestamped table exports, not just _latest", () => {
+    const cacheDir = path.join(fakeHome, ".cache", "cellartracker-mcp", "exports");
+    fs.mkdirSync(cacheDir, { recursive: true });
+    fs.writeFileSync(path.join(cacheDir, "Notes_20260315_143000.csv"), "data");
+
+    const result = clearUserData({ credentials: false, cache: true });
+    expect(result.cacheFilesRemoved).toBe(1);
+    expect(fs.readdirSync(cacheDir)).toHaveLength(0);
+  });
+
   it("reports 0 cache files when cache dir is empty", () => {
     const cacheDir = path.join(fakeHome, ".cache", "cellartracker-mcp", "exports");
     fs.mkdirSync(cacheDir, { recursive: true });

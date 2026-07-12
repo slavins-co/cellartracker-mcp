@@ -20,6 +20,7 @@ import {
   search,
   spendSummary,
   toIsoDate,
+  vintageLabel,
 } from "./query.js";
 
 /** Load credentials and ensure cache is fresh. Returns table paths. */
@@ -32,14 +33,20 @@ async function getFreshPaths(): Promise<Record<string, string>> {
 const ALL_SCORE_FIELDS = ["CT", "JR", "WA", "WS", "AG", "WE", "JG", "D", "JH", "VM"];
 const KEY_SCORE_FIELDS = ["CT", "WA", "WS", "JR", "AG"];
 
-/** Format score fields from a row into "CT:95, WA:93" style string. */
-function formatScores(row: Row, fields: string[] = ALL_SCORE_FIELDS): string {
+/** Format score fields from a row into "CT:95, WA:93" style string. Rounds to 1 decimal. */
+export function formatScores(row: Row, fields: string[] = ALL_SCORE_FIELDS): string {
   const parts: string[] = [];
   for (const field of fields) {
-    const val = (row[field] ?? "").trim();
-    if (val && val !== "0" && val !== "0.0") {
-      parts.push(`${field}:${val}`);
+    const raw = (row[field] ?? "").trim();
+    if (!raw) continue;
+    const num = parseFloat(raw);
+    if (isNaN(num)) {
+      parts.push(`${field}:${raw}`);
+      continue;
     }
+    const rounded = Math.round(num * 10) / 10;
+    if (rounded === 0) continue;
+    parts.push(`${field}:${rounded}`);
   }
   return parts.length > 0 ? parts.join(", ") : "no scores";
 }
@@ -47,7 +54,7 @@ function formatScores(row: Row, fields: string[] = ALL_SCORE_FIELDS): string {
 /** Format a single wine row into readable text. */
 function fmtWine(row: Row, includeScores = false): string {
   const wine = row.Wine ?? row.WineName ?? "Unknown";
-  const vintage = row.Vintage ?? "NV";
+  const vintage = vintageLabel(row);
   const location = row.Location ?? row.Bin ?? "";
   const qty = row.Quantity ?? row.QtyOH ?? "";
   const price = row.Price ?? row.Valuation ?? "";
@@ -217,7 +224,7 @@ export function createServer(): McpServer {
       for (let i = 0; i < prioritized.length; i++) {
         const row = prioritized[i];
         const wine = row.Wine ?? row.WineName ?? "Unknown";
-        const vintage = row.Vintage ?? "NV";
+        const vintage = vintageLabel(row);
         const loc = row.Location ?? row.Bin ?? "";
         const status = maturityLabel(row, currentYear);
 
@@ -416,7 +423,7 @@ export function createServer(): McpServer {
         lines.push("No deliveries in this window.");
       } else {
         for (const r of summary.deliveries) {
-          const vint = r.Vintage && r.Vintage !== "1001" ? r.Vintage : "NV";
+          const vint = vintageLabel(r);
           lines.push(`  ${toIsoDate(r.DeliveryDate)}  ${vint} ${r.Wine ?? "Unknown"}`);
           lines.push(`    $${r.Price ?? "?"} x${r.Quantity ?? "1"}` + (r.StoreName ? ` @ ${r.StoreName}` : ""));
         }
@@ -460,7 +467,7 @@ export function createServer(): McpServer {
       const lines = [`Wishlist — ${wishlist.length} wine(s):`, ""];
       for (const row of wishlist) {
         const wine = row.Wine ?? row.WineName ?? "Unknown";
-        const vintage = row.Vintage ?? "NV";
+        const vintage = vintageLabel(row);
         const notes = (row.WinesNotes ?? row.Notes ?? "").trim();
         const maxPrice = (row.MaxPrice ?? row.Price ?? "").trim();
 
@@ -517,7 +524,7 @@ export function createServer(): McpServer {
 
       const lines = [`Found ${total} consumption record(s):\n`];
       for (const row of results) {
-        const vintage = row.Vintage ?? "NV";
+        const vintage = vintageLabel(row);
         const wine = row.Wine ?? "Unknown";
         const date = row.Consumed ?? "?";
         const shortType = (row.ShortType ?? "").trim();
@@ -582,7 +589,7 @@ export function createServer(): McpServer {
 
       const lines = [`Found ${total} tasting note(s):\n`];
       for (const row of results) {
-        const vintage = row.Vintage ?? "NV";
+        const vintage = vintageLabel(row);
         const wine = row.Wine ?? "Unknown";
         const date = row.TastingDate ?? "?";
         const rating = (row.Rating ?? "").trim();

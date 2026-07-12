@@ -6,6 +6,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
+import { TABLES } from "./exporter.js";
+
 /** Detect unresolved MCP client template strings like "${CT_USERNAME}". */
 export function looksLikeTemplate(value: string): boolean {
   return /^\$\{.+\}$/.test(value);
@@ -156,7 +158,15 @@ export function clearUserData(opts: { credentials: boolean; cache: boolean }): C
     } catch {
       files = [];
     }
+    // Only remove known table CSVs matching exporter.ts's exact naming
+    // convention (`<Table>_YYYYMMDD_HHMMSS.csv` or `<Table>_latest.csv`) —
+    // a shared CT_CACHE_DIR may hold unrelated same-prefix files that must survive.
+    const tablePatterns = Object.keys(TABLES).map(
+      (t) => new RegExp(`^${t}_(\\d{8}_\\d{6}|latest)\\.csv$`)
+    );
+    const isTableCsv = (f: string): boolean => tablePatterns.some((re) => re.test(f));
     for (const f of files) {
+      if (!isTableCsv(f)) continue;
       try {
         fs.unlinkSync(path.join(cacheDir, f));
         result.cacheFilesRemoved++;

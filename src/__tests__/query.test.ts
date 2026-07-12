@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import {
   aggregate,
   parseCsv,
@@ -6,6 +6,7 @@ import {
   drinkingPriority,
   spendSummary,
   deliverySummary,
+  vintageLabel,
   type Row,
 } from "../query.js";
 
@@ -160,6 +161,56 @@ describe("toIsoDate", () => {
 
   it("handles double-digit month and day", () => {
     expect(toIsoDate("12/25/2023")).toBe("2023-12-25");
+  });
+
+  describe("date-parse warning", () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it("logs a single stderr warning for a repeated unparseable value", () => {
+      const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+      toIsoDate("bogus-date-46a");
+      toIsoDate("bogus-date-46a");
+      toIsoDate("bogus-date-46a");
+      expect(spy).toHaveBeenCalledTimes(1);
+    });
+
+    it("stays silent for empty or undefined input", () => {
+      const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+      toIsoDate("");
+      toIsoDate(undefined);
+      toIsoDate("   ");
+      expect(spy).not.toHaveBeenCalled();
+    });
+
+    it("stays silent for parseable input", () => {
+      const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+      toIsoDate("3/14/2026");
+      toIsoDate("2026-03-14");
+      expect(spy).not.toHaveBeenCalled();
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// vintageLabel
+// ---------------------------------------------------------------------------
+describe("vintageLabel", () => {
+  it("renders CellarTracker's 1001 NV sentinel as NV", () => {
+    expect(vintageLabel({ Vintage: "1001" })).toBe("NV");
+  });
+
+  it("renders an empty vintage as NV", () => {
+    expect(vintageLabel({ Vintage: "" })).toBe("NV");
+  });
+
+  it("renders a missing Vintage field as NV", () => {
+    expect(vintageLabel({})).toBe("NV");
+  });
+
+  it("passes through a real vintage year unchanged", () => {
+    expect(vintageLabel({ Vintage: "2015" })).toBe("2015");
   });
 });
 

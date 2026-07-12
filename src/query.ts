@@ -94,10 +94,15 @@ export function crossReference(
   });
 }
 
+/** Distinct unparseable date values already warned about this process (dedup). */
+const warnedDateFormats = new Set<string>();
+
 /**
  * Normalize a date string to YYYY-MM-DD for reliable comparison and sorting.
  * Handles M/D/YYYY (CellarTracker export format) and YYYY-MM-DD (user input).
- * Returns "" for unparseable values so they sort to the end.
+ * Returns "" for unparseable values so they sort to the end. Logs a single
+ * stderr warning per distinct unparseable value per process (silent for
+ * empty input, which is an expected/frequent case, not a data problem).
  */
 export function toIsoDate(value: string | undefined): string {
   if (!value?.trim()) return "";
@@ -113,7 +118,20 @@ export function toIsoDate(value: string | undefined): string {
     return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
   }
 
+  if (!warnedDateFormats.has(v)) {
+    warnedDateFormats.add(v);
+    console.error(`Warning: could not parse date value "${v}" — treating as unknown (sorts last).`);
+  }
   return "";
+}
+
+/**
+ * Render a row's vintage for display. CellarTracker uses "1001" as its NV
+ * (non-vintage) sentinel — rendering it raw would show "1001" instead of "NV".
+ */
+export function vintageLabel(row: Row): string {
+  const v = (row.Vintage ?? "").trim();
+  return !v || v === "1001" ? "NV" : v;
 }
 
 function safeFloat(value: string | undefined, fallback = -1): number {
