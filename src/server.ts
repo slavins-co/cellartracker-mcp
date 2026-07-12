@@ -56,6 +56,12 @@ export function formatScores(row: Row, fields: string[] = ALL_SCORE_FIELDS): str
   return parts.length > 0 ? parts.join(", ") : "no scores";
 }
 
+/** Build a CellarTracker wine detail page URL from an iWine id. Undefined when iWine is missing/blank. */
+export function wineUrl(iWine: string | undefined): string | undefined {
+  const id = (iWine ?? "").trim();
+  return id ? `https://www.cellartracker.com/wine.asp?iWine=${id}` : undefined;
+}
+
 /** Format a single wine row into readable text. */
 function fmtWine(row: Row, includeScores = false): string {
   const wine = row.Wine ?? row.WineName ?? "Unknown";
@@ -81,6 +87,9 @@ function fmtWine(row: Row, includeScores = false): string {
       lines.push(`    Scores: ${scores}`);
     }
   }
+
+  const link = wineUrl(row.iWine);
+  if (link) lines.push(`    Link: ${link}`);
 
   return lines.join("\n");
 }
@@ -241,11 +250,14 @@ export function createServer(): McpServer {
 
         const scores = formatScores(row, KEY_SCORE_FIELDS);
 
+        const link = wineUrl(row.iWine);
+
         lines.push(`${i + 1}. ${vintage} ${wine}`);
         if (loc) lines.push(`   Location: ${loc}`);
         lines.push(`   Status: ${status}`);
         lines.push(`   Window: ${window}`);
         lines.push(`   Scores: ${scores}`);
+        if (link) lines.push(`   Link: ${link}`);
         lines.push("");
       }
 
