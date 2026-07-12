@@ -277,6 +277,21 @@ describe("clearUserData", () => {
     expect(fs.readdirSync(cacheDir)).toHaveLength(0);
   });
 
+  it("does not delete unrelated files in a shared cache dir", () => {
+    const cacheDir = path.join(fakeHome, ".cache", "cellartracker-mcp", "exports");
+    fs.mkdirSync(cacheDir, { recursive: true });
+    fs.writeFileSync(path.join(cacheDir, "List_latest.csv"), "data");
+    fs.writeFileSync(path.join(cacheDir, "unrelated-file.txt"), "do not touch");
+    fs.writeFileSync(path.join(cacheDir, "SomeOtherApp_data.json"), "{}");
+
+    const result = clearUserData({ credentials: false, cache: true });
+    expect(result.cacheFilesRemoved).toBe(1);
+    const remaining = fs.readdirSync(cacheDir);
+    expect(remaining).toContain("unrelated-file.txt");
+    expect(remaining).toContain("SomeOtherApp_data.json");
+    expect(remaining).not.toContain("List_latest.csv");
+  });
+
   it("reports 0 cache files when cache dir is empty", () => {
     const cacheDir = path.join(fakeHome, ".cache", "cellartracker-mcp", "exports");
     fs.mkdirSync(cacheDir, { recursive: true });
