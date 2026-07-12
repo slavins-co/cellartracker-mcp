@@ -10,6 +10,7 @@ import {
   deliverySummary,
   mostRecentDeliveryDate,
   pendingOrders,
+  bottleDetails,
   vintageLabel,
   type Row,
 } from "../query.js";
@@ -679,5 +680,140 @@ describe("pendingOrders", () => {
     expect(result.line_count).toBe(0);
     expect(result.bottle_count).toBe(0);
     expect(result.orders).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// bottleDetails
+// ---------------------------------------------------------------------------
+describe("bottleDetails", () => {
+  // Mirrors the real Bottles table: BottleState "1" = in cellar, "0" = consumed.
+  const makeBottle = (over: Partial<Row> = {}): Row => ({
+    BottleState: "1",
+    Barcode: "0000000001",
+    Wine: "Test Wine",
+    Vintage: "2020",
+    BottleSize: "750ml",
+    Location: "Wine Fridge",
+    Bin: "1-1",
+    ...over,
+  });
+
+  it("filters by wine name, diacritic- and case-insensitively", () => {
+    const rows = [
+      makeBottle({ Wine: "Château Margaux" }),
+      makeBottle({ Wine: "Sancerre" }),
+    ];
+    const result = bottleDetails(rows, { wine: "chateau" });
+    expect(result).toHaveLength(1);
+    expect(result[0].Wine).toBe("Château Margaux");
+  });
+
+  it("filters by location (substring, case-insensitive)", () => {
+    const rows = [
+      makeBottle({ Location: "Wine Fridge" }),
+      makeBottle({ Location: "Bar Cabinet" }),
+    ];
+    const result = bottleDetails(rows, { location: "wine fridge" });
+    expect(result).toHaveLength(1);
+    expect(result[0].Location).toBe("Wine Fridge");
+  });
+
+  it("filters by bin", () => {
+    const rows = [
+      makeBottle({ Bin: "Drawer 2" }),
+      makeBottle({ Bin: "Shelf Rack" }),
+    ];
+    const result = bottleDetails(rows, { bin: "drawer 2" });
+    expect(result).toHaveLength(1);
+    expect(result[0].Bin).toBe("Drawer 2");
+  });
+
+  it("filters by size via the BottleSize column", () => {
+    const rows = [
+      makeBottle({ BottleSize: "750ml" }),
+      makeBottle({ BottleSize: "1500ml" }),
+    ];
+    const result = bottleDetails(rows, { size: "1500" });
+    expect(result).toHaveLength(1);
+    expect(result[0].BottleSize).toBe("1500ml");
+  });
+
+  it("filters by barcode", () => {
+    const rows = [
+      makeBottle({ Barcode: "0209619452" }),
+      makeBottle({ Barcode: "0213608403" }),
+    ];
+    const result = bottleDetails(rows, { barcode: "0209619452" });
+    expect(result).toHaveLength(1);
+    expect(result[0].Barcode).toBe("0209619452");
+  });
+
+  it("state='cellar' returns only in-cellar bottles (BottleState '1')", () => {
+    const rows = [
+      makeBottle({ Wine: "In Cellar", BottleState: "1" }),
+      makeBottle({ Wine: "Consumed", BottleState: "0" }),
+    ];
+    const result = bottleDetails(rows, {}, "cellar");
+    expect(result.map((r) => r.Wine)).toEqual(["In Cellar"]);
+  });
+
+  it("state='consumed' returns only consumed bottles (BottleState '0')", () => {
+    const rows = [
+      makeBottle({ Wine: "In Cellar", BottleState: "1" }),
+      makeBottle({ Wine: "Consumed", BottleState: "0" }),
+    ];
+    const result = bottleDetails(rows, {}, "consumed");
+    expect(result.map((r) => r.Wine)).toEqual(["Consumed"]);
+  });
+
+  it("state='all' (default) includes both cellar and consumed", () => {
+    const rows = [
+      makeBottle({ Wine: "In Cellar", BottleState: "1" }),
+      makeBottle({ Wine: "Consumed", BottleState: "0" }),
+    ];
+    expect(bottleDetails(rows, {})).toHaveLength(2);
+    expect(bottleDetails(rows, {}, "all")).toHaveLength(2);
+  });
+
+  it("sorts cellar bottles ahead of consumed, then by location, then bin", () => {
+    const rows = [
+      makeBottle({ Wine: "Consumed A", BottleState: "0", Location: "Aaa", Bin: "1" }),
+      makeBottle({ Wine: "Cellar Fridge B2", BottleState: "1", Location: "Wine Fridge", Bin: "2" }),
+      makeBottle({ Wine: "Cellar Fridge B1", BottleState: "1", Location: "Wine Fridge", Bin: "1" }),
+      makeBottle({ Wine: "Cellar Cabinet", BottleState: "1", Location: "Bar Cabinet", Bin: "9" }),
+    ];
+    const result = bottleDetails(rows, {});
+    expect(result.map((r) => r.Wine)).toEqual([
+      "Cellar Cabinet", // Bar Cabinet sorts before Wine Fridge
+      "Cellar Fridge B1", // same location, Bin 1 before Bin 2
+      "Cellar Fridge B2",
+      "Consumed A", // consumed always last regardless of location
+    ]);
+  });
+
+  it("excludes a garbled BottleState from cellar/consumed views but keeps it under 'all'", () => {
+    const rows = [
+      makeBottle({ Wine: "Good Cellar", BottleState: "1" }),
+      makeBottle({ Wine: "Garbled", BottleState: "" }),
+    ];
+    expect(bottleDetails(rows, {}, "cellar").map((r) => r.Wine)).toEqual(["Good Cellar"]);
+    expect(bottleDetails(rows, {}, "consumed").map((r) => r.Wine)).toEqual([]);
+    expect(bottleDetails(rows, {}, "all").map((r) => r.Wine).sort()).toEqual(["Garbled", "Good Cellar"]);
+  });
+
+  it("combines a data filter with a state filter", () => {
+    const rows = [
+      makeBottle({ Wine: "Barolo", BottleState: "1" }),
+      makeBottle({ Wine: "Barolo", BottleState: "0" }),
+      makeBottle({ Wine: "Chablis", BottleState: "1" }),
+    ];
+    const result = bottleDetails(rows, { wine: "barolo" }, "cellar");
+    expect(result).toHaveLength(1);
+    expect(result[0].BottleState).toBe("1");
+  });
+
+  it("returns [] for empty input", () => {
+    expect(bottleDetails([], {})).toEqual([]);
   });
 });
