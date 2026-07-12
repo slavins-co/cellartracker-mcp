@@ -17,6 +17,7 @@ import {
   type WishlistRow,
   type ConsumptionRow,
   type TastingRow,
+  type DrinkingRecommendation,
   searchCellarShape,
   drinkingRecommendationsShape,
   cellarStatsShape,
@@ -445,7 +446,7 @@ export function createServer(): McpServer {
       if (occasion) header += ` — ${occasion}`;
       if (color) header += ` (filtered: ${color})`;
 
-      const recommendations: (WineRow & { status: string; window: string })[] = [];
+      const recommendations: DrinkingRecommendation[] = [];
       const lines = [header, "=".repeat(header.length), ""];
       for (let i = 0; i < prioritized.length; i++) {
         const row = prioritized[i];
@@ -547,6 +548,10 @@ export function createServer(): McpServer {
       if (group_by) {
         const groupKey = group_by.toLowerCase().trim();
         if (!(groupKey in columnMap)) {
+          // Invalid input: flag isError so a structured-output client sees the
+          // rejection rather than a success-shaped stats payload with the
+          // requested breakdown silently missing. The SDK skips outputSchema
+          // validation for isError results, so no structuredContent is needed.
           return {
             content: [
               {
@@ -554,7 +559,7 @@ export function createServer(): McpServer {
                 text: `Invalid group_by '${group_by}'. Valid options: ${Object.keys(columnMap).join(", ")}`,
               },
             ],
-            structuredContent: stats,
+            isError: true,
           };
         }
         const col = columnMap[groupKey];
@@ -814,6 +819,7 @@ export function createServer(): McpServer {
       );
 
       if (matches.length === 0) {
+        const emptyResult = { total: 0, offset: 0, count: 0, bottles: [] };
         // A location/bin miss deserves a different message: CT Location/Bin are
         // opaque account labels, so name the discovery path. But only when the
         // location/bin value itself matched nothing — if it matches rows on its
@@ -834,12 +840,12 @@ export function createServer(): McpServer {
                   "in use, then retry with the exact value.",
               },
             ],
-            structuredContent: { total: 0, offset: 0, count: 0, bottles: [] },
+            structuredContent: emptyResult,
           };
         }
         return {
           content: [{ type: "text", text: "No bottles found matching your criteria." }],
-          structuredContent: { total: 0, offset: 0, count: 0, bottles: [] },
+          structuredContent: emptyResult,
         };
       }
 

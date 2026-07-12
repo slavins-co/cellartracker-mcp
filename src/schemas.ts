@@ -100,10 +100,15 @@ export const searchCellarShape = {
   wines: z.array(wineRowSchema),
 };
 
+/** A wine plus its drinking status/window (drinking-recommendations element). */
+export const drinkingRecommendationSchema = wineRowSchema.extend({
+  status: z.string(),
+  window: z.string(),
+});
+export type DrinkingRecommendation = z.infer<typeof drinkingRecommendationSchema>;
+
 export const drinkingRecommendationsShape = {
-  recommendations: z.array(
-    wineRowSchema.extend({ status: z.string(), window: z.string() })
-  ),
+  recommendations: z.array(drinkingRecommendationSchema),
 };
 
 export const cellarStatsShape = {

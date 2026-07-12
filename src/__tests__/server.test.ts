@@ -419,12 +419,17 @@ describe("structured output — data tools (fixture cache)", () => {
   });
 
   afterAll(async () => {
-    await Promise.all([client.close(), server.close()]);
-    for (const [k, v] of Object.entries(savedEnv)) {
-      if (v === undefined) delete process.env[k];
-      else process.env[k] = v;
+    // Restore env + remove the temp dir even if close() rejects, so test creds
+    // or the deleted-creds state can't leak into a later describe block.
+    try {
+      await Promise.all([client.close(), server.close()]);
+    } finally {
+      for (const [k, v] of Object.entries(savedEnv)) {
+        if (v === undefined) delete process.env[k];
+        else process.env[k] = v;
+      }
+      fs.rmSync(tmpDir, { recursive: true, force: true });
     }
-    fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
   it("search-cellar returns structured wines agreeing with the text count", async () => {
@@ -447,11 +452,17 @@ describe("structured output — data tools (fixture cache)", () => {
     expect(textOf(r)).toContain("No wines found");
   });
 
-  it("drinking-recommendations returns structured recs with status/window", async () => {
+  it("drinking-recommendations sorts the past-peak wine first with the right status", async () => {
     const r = await call("drinking-recommendations", {});
-    const sc = r.structuredContent as { recommendations: { status: string; window: string }[] };
+    const sc = r.structuredContent as {
+      recommendations: { iWine: string; status: string; window: string }[];
+    };
     expect(sc.recommendations.length).toBe(3);
-    expect(sc.recommendations[0].status).toBeTruthy();
+    // Fixture iWine 101 has Available 1.2 (>1.0 = past peak) → priority tier 0,
+    // so it must sort first and carry the past-peak status. A regression that
+    // inverts the maturity classification or the sort would fail here.
+    expect(sc.recommendations[0].iWine).toBe("101");
+    expect(sc.recommendations[0].status).toMatch(/PAST PEAK/);
     expect(sc.recommendations[0].window).toBeTruthy();
   });
 
@@ -471,12 +482,12 @@ describe("structured output — data tools (fixture cache)", () => {
     expect(totalInBreakdown).toBe(11);
   });
 
-  it("cellar-stats invalid group_by returns headline stats without a breakdown", async () => {
+  it("cellar-stats invalid group_by is flagged isError with the friendly text", async () => {
     const r = await call("cellar-stats", { group_by: "nonsense" });
-    const sc = r.structuredContent as { totalBottles: number; breakdown?: unknown };
-    expect(sc.totalBottles).toBe(11);
-    expect(sc.breakdown).toBeUndefined();
-    expect(textOf(r)).toContain("Invalid group_by");
+    // isError lets a structured-output client see the rejection instead of a
+    // success-shaped stats payload with the breakdown silently missing.
+    expect(r.isError).toBe(true);
+    expect(textOf(r)).toContain("Invalid group_by 'nonsense'");
   });
 
   it("purchase-history spend totals agree with the text", async () => {
@@ -568,16 +579,26 @@ describe("structured output — refresh-data (stubbed fetch)", () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it("returns structured table stats for all 8 tables", async () => {
+  it("returns structured table stats for all 8 named tables", async () => {
     const server = createServer();
     const client = new Client({ name: "test-client", version: "0.0.0" });
     const [ct, st] = InMemoryTransport.createLinkedPair();
     await Promise.all([client.connect(ct), server.connect(st)]);
-    const r = await client.callTool({ name: "refresh-data", arguments: {} });
-    const sc = r.structuredContent as { serverVersion: string; tables: { name: string; rows: number }[] };
-    expect(sc.tables).toHaveLength(8);
-    expect(sc.serverVersion).toBeTruthy();
-    await Promise.all([client.close(), server.close()]);
+    try {
+      const r = await client.callTool({ name: "refresh-data", arguments: {} });
+      const sc = r.structuredContent as {
+        serverVersion: string;
+        tables: { name: string; rows: number; description: string }[];
+      };
+      expect(new Set(sc.tables.map((t) => t.name))).toEqual(
+        new Set(["List", "Notes", "Purchase", "Consumed", "Availability", "Tag", "Bottles", "Pending"])
+      );
+      // Each stubbed fetch returns a 1-row CSV, so every table reports rows: 1.
+      expect(sc.tables.every((t) => t.rows === 1)).toBe(true);
+      expect(sc.serverVersion).toBeTruthy();
+    } finally {
+      await Promise.all([client.close(), server.close()]);
+    }
   });
 });
 
@@ -603,12 +624,17 @@ describe("structured output — local credential tools", () => {
   });
 
   afterAll(async () => {
-    await Promise.all([client.close(), server.close()]);
-    for (const [k, v] of Object.entries(savedEnv)) {
-      if (v === undefined) delete process.env[k];
-      else process.env[k] = v;
+    // Restore env + remove the temp dir even if close() rejects, so test creds
+    // or the deleted-creds state can't leak into a later describe block.
+    try {
+      await Promise.all([client.close(), server.close()]);
+    } finally {
+      for (const [k, v] of Object.entries(savedEnv)) {
+        if (v === undefined) delete process.env[k];
+        else process.env[k] = v;
+      }
+      fs.rmSync(tmpDir, { recursive: true, force: true });
     }
-    fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
   it("clear-user-data returns structured cache-removal status (cache only)", async () => {
