@@ -17,3 +17,17 @@ jobs:
       - run: npm test
       - run: npm run build
       - run: npm run verify-versions
+
+  # Dry-runs the release packaging path (prod-only reinstall + mcpb pack)
+  # on every push/PR, without publishing. Catches packaging breaks before
+  # release day - see scripts/pack-check.sh, also used by publish.yml.
+  packaging-dry-run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+      - run: npm ci
+      - run: npm run build
+      - run: npm run pack:check

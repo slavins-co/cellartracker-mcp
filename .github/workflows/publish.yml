@@ -35,11 +35,9 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
-      - name: Re-install production deps only for smaller bundle
-        # --ignore-scripts: dist is already built above; skip the `prepare`
-        # rebuild, which would run tsc without devDependencies and fail.
-        run: rm -rf node_modules && npm ci --omit=dev --ignore-scripts
-      - run: npx @anthropic-ai/mcpb pack .
+      # scripts/pack-check.sh (shared with ci.yml's packaging-dry-run job)
+      # re-installs production-only deps and packs, without publishing.
+      - run: npm run pack:check
       - name: Attach .mcpb to release
         uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2.5.0
         with:
