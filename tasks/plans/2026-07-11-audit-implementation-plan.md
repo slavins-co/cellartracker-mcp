@@ -4,13 +4,15 @@ Source: full audit in the vault at `_System/Audits/2026-07-11-CellarTracker-MCP-
 
 Status 2026-07-11 EOD: Phase 1 complete - #40/#41/#42 closed, PR #39 merged (HOLD), v0.3.2 released to npm + .mcpb. Session recap: vault `1-Stream/Session-Recaps/2026-07-11-cellartracker-external-pr-and-v032-release.md`.
 
-Status 2026-07-12: **Phase 2 fully implemented** - #43/#44 (PR #72), #45/#47 (PR #73), #46 incl. vintageLabel (PR #74), #48 (PR #75), #69 (PR #76). All merged to main, CI green, branch protection active (requires `test` check), suite at 124 tests. **v0.4.0 NOT yet released** - version files still 0.3.2. Remaining before registry: optional annotations pull-forward, version bump, release, post-release verification.
+Status 2026-07-12: **AUDIT ARC COMPLETE.** Phase 2 shipped via PRs #72-#76; PR #77 added docs sync (#53) + tool annotations (#54 partial); **v0.4.0 released** (all robustness findings); **v0.4.1 released** (registry metadata: `mcpName`, `server.json`, six-location verify-versions); **published to the official MCP Registry** as `io.github.slavins-co/cellartracker-mcp` (verified via public API). Local install verified at 0.4.x (staleness class confirmed dead). Suite at 127 tests.
+
+Remaining tail (all optional, unscheduled): Phase 3 features → 0.5.0, #54 backlog remainder, held dependabot majors, PyPI 0.1.0 deprecation, one-time ToS read.
 
 ## Decisions
 
 **Read-only: CONFIRMED (2026-07-11).** The server stays read-only. Rationale: CellarTracker has no sanctioned write path - exports are explicitly one-way, the private partner API is closed, and the only project that writes back (RoarKri/mcp-cellartracker) scrapes the authenticated web app and carries WAF-detection code because it breaks. With full-account credentials, a write bug corrupts real cellar data; read-only caps the blast radius at disclosure. Deep links (#52) are the read-only-compatible answer to "let me act on a recommendation."
 
-**MCP registry submission: gate on 0.4.0 (decided 2026-07-11).** Submit after 0.4.0 tags - that release changes what a new user hits (stampede fix, diacritic search, honest auth errors). Not 0.5.0: Phase 3 features don't change the trust story, so waiting further is drift. Pros/cons record below.
+**MCP registry submission: DONE (2026-07-12).** Gated on 0.4.0 as decided; executed immediately after via the metadata-only v0.4.1 (the registry validates npm ownership by reading `mcpName` from the published package, which forced the patch release). Pros/cons record below - the standing obligation accepted with it: a registry listing invites users, so the maintenance-appetite question is now answered "yes" by action.
 
 ## Phase 1 - Hygiene (SHIPPED as v0.3.2, 2026-07-11)
 
@@ -29,7 +31,7 @@ Maintainer-only actions (settings/accounts, not code sessions):
 - [ ] Deprecate PyPI `cellartracker-mcp` 0.1.0 with a pointer to npm (needs PyPI account).
 - [ ] One manual read of CellarTracker ToS re: automated access (their terms page 403s automated fetches).
 
-## Phase 2 - Robustness (IMPLEMENTED 2026-07-12; ships as 0.4.0, release pending)
+## Phase 2 - Robustness (SHIPPED as v0.4.0, 2026-07-12)
 
 All merged via PRs #72-#76 in the planned groupings. #43 and #47 both touch exporter.ts error paths - do #43 before #47 if running back-to-back.
 
@@ -45,7 +47,7 @@ All merged via PRs #72-#76 in the planned groupings. #43 and #47 both touch expo
 
 #69 was added post-Phase-1: the `prepare`/`--omit=dev` collision only surfaced mid-release (first v0.3.2 attempt failed). It must land **before the 0.4.0 tag** - its whole point is catching packaging breaks before release day.
 
-## Phase 3 - Features (0.4.x / 0.5.0)
+## Phase 3 - Features (→ 0.5.0, unscheduled; #53 already shipped in 0.4.0)
 
 | # | Issue | Size | Sequencing |
 |---|---|---|---|
@@ -104,7 +106,8 @@ Context: the server is not in the official MCP registry (registry.modelcontextpr
 | 7 | ✅ Diacritic search | #48 | Sonnet | Done - PR #75 (2026-07-12). |
 | 8 | ✅ Publish dry-run CI | #69 | Sonnet | Done - PR #76 (2026-07-12), landed before the tag as required. |
 | 8.5 | ✅ Annotations + docs sync | #53 + part of #54 | Sonnet | Done - PR #77 (2026-07-12), incl. #48-style drift fix in the second skill, protocol-level annotation tests, `openWorldHint: false` on clear-user-data. refresh-data `readOnlyHint: true` debate resolved on the PR - settled, do not revisit. |
-| - | ✅ **Release 0.4.0** | | | Shipped 2026-07-12, first attempt clean (npm with provenance + .mcpb attached; the #69 dry-run guard did its job). **One verification outstanding:** on next MCP session start, run `refresh-data` - it must print v0.4.0. If it shows 0.3.x, clear the stale npx cache entry (`~/.npm/_npx/*/node_modules/cellartracker-mcp` resolved from the local path). |
+| - | ✅ **Release 0.4.0** | | | Shipped 2026-07-12, first attempt clean (npm with provenance + .mcpb attached; the #69 dry-run guard did its job). Local-install verification passed (user confirmed 0.4.0 after plugin reinstall; note: marketplace remove/re-add was the only UI path that worked for updating - plugin-update UX rough edge). |
+| - | ✅ **Release 0.4.1** | | | Shipped 2026-07-12. Metadata-only: `mcpName` in package.json (required - registry ownership validation reads the *published* npm package), `server.json`, verify-versions → scripts/verify-versions.mjs (six locations + registry identity), README pin example. |
 | - | ✅ **Registry submission** | | | **DONE 2026-07-12.** Published `io.github.slavins-co/cellartracker-mcp` v0.4.1 to registry.modelcontextprotocol.io (verified via public API). Required a metadata-only v0.4.1 npm publish carrying `mcpName` (registry ownership validation reads the published package). `server.json` committed; `verify-versions` now scripts/verify-versions.mjs covering six version locations + registry identity. Glama's "cannot be installed" flag traced to their automated probe ("Quality: not tested"), nothing actionable our side - expect aggregators to re-index from the official registry. **This closes the last 2026-07-11 audit-arc item.** |
 | 9 | Docs sync | #53 | Sonnet | Do FIRST in Phase 3 - #49/#50/#51 touch the same skill docs; fix drift before adding to them. Scope includes recent-deliveries (see issue comment). |
 | 10 | Orders & deliveries | #70 + #71 | Sonnet | Same domain (Pending/deliveries), same server.ts neighborhood, both small. #70 reuses recent-deliveries' conventions. |
