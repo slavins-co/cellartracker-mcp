@@ -52,7 +52,7 @@ Determine evaluation mode from input:
 
 **ALWAYS attempt to reference current cellar inventory.**
 
-Use the MCP `search_cellar` tool if available. Otherwise, look for uploaded CSV files (e.g., `CurrentWineCollection*.csv` or `List_latest.csv`).
+Use the MCP `search-cellar` tool if available. Otherwise, look for uploaded CSV files (e.g., `CurrentWineCollection*.csv` or `List_latest.csv`).
 
 If inventory not available:
 - Proceed with evaluation

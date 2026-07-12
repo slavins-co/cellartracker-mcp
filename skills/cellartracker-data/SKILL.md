@@ -10,12 +10,15 @@ This skill enables Claude to parse, query, and cross-reference CellarTracker dat
 ## Data Source
 
 **When MCP tools are available (Claude Code or Claude Desktop)**, use the following tools for live data:
-- `search_cellar` — query current inventory by wine name, region, varietal, producer, etc.
-- `drinking_recommendations` — get maturity-aware suggestions for what to drink
-- `cellar_stats` — overview of cellar composition (counts, categories, regions)
-- `purchase_history` — full buy history with pricing and retailer info
-- `get_wishlist` — current wishlist with notes on why each wine was added
-- `refresh_data` — force a fresh pull from CellarTracker
+- `search-cellar` — query current inventory by wine name, region, varietal, producer, etc.
+- `drinking-recommendations` — get maturity-aware suggestions for what to drink
+- `cellar-stats` — overview of cellar composition (counts, categories, regions)
+- `purchase-history` — full buy history with pricing and retailer info
+- `recent-deliveries` — wines actually received in a date range, by delivery date
+- `get-wishlist` — current wishlist with notes on why each wine was added
+- `consumption-history` — wines you've opened, with tasting context
+- `tasting-notes` — your tasting notes and reviews with ratings and scores
+- `refresh-data` — force a fresh pull from CellarTracker
 
 **When MCP is not available (Claude.ai Projects)**, look for uploaded CSV files:
 - Individual `*_latest.csv` files (most common)
@@ -48,7 +51,7 @@ Eight tables are exported from CellarTracker. Not all will always be available �
 ## Parsing Instructions
 
 All CT export CSVs share these characteristics:
-- UTF-8 encoded (converted from windows-1252 by export script)
+- UTF-8 encoded (charset detected from CellarTracker's response headers, falling back to windows-1252)
 - Quoted fields, comma-delimited
 - First row is always headers
 - `iWine` is the universal join key across all tables
@@ -185,9 +188,9 @@ Tag table with `ListName` = `*Wishlist`:
 
 ### wine-purchase-evaluator
 When evaluating purchases, this skill provides:
-- **Redundancy data** from inventory (same producer, varietal, region) — use `search_cellar` MCP tool or List CSV
-- **Wishlist match** from wishlists — use `get_wishlist` MCP tool or Tag CSV
-- **Historical pricing** from purchase history — use `purchase_history` MCP tool or Purchase CSV
+- **Redundancy data** from inventory (same producer, varietal, region) — use `search-cellar` MCP tool or List CSV
+- **Wishlist match** from wishlists — use `get-wishlist` MCP tool or Tag CSV
+- **Historical pricing** from purchase history — use `purchase-history` MCP tool or Purchase CSV
 - **Consumption velocity** from consumption log — use Consumed CSV
 
 ### General wine advisory

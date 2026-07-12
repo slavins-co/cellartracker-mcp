@@ -1,8 +1,10 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { formatScores } from "../server.js";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { createServer, formatScores } from "../server.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -55,6 +57,72 @@ describe("formatScores", () => {
 
   it("returns 'no scores' when nothing is present", () => {
     expect(formatScores({}, ["CT"])).toBe("no scores");
+  });
+});
+
+describe("tool annotations", () => {
+  const originalEnv = { CT_USERNAME: process.env.CT_USERNAME, CT_PASSWORD: process.env.CT_PASSWORD };
+  let tools: Awaited<ReturnType<Client["listTools"]>>["tools"];
+
+  beforeAll(async () => {
+    // Clear env credentials so setup-credentials/clear-user-data are deterministically
+    // registered, regardless of the ambient shell environment running the suite.
+    delete process.env.CT_USERNAME;
+    delete process.env.CT_PASSWORD;
+
+    const server = createServer();
+    const client = new Client({ name: "test-client", version: "0.0.0" });
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    await Promise.all([client.connect(clientTransport), server.connect(serverTransport)]);
+    ({ tools } = await client.listTools());
+    await Promise.all([client.close(), server.close()]);
+  });
+
+  afterAll(() => {
+    if (originalEnv.CT_USERNAME !== undefined) process.env.CT_USERNAME = originalEnv.CT_USERNAME;
+    else delete process.env.CT_USERNAME;
+    if (originalEnv.CT_PASSWORD !== undefined) process.env.CT_PASSWORD = originalEnv.CT_PASSWORD;
+    else delete process.env.CT_PASSWORD;
+  });
+
+  it("marks all data-query tools read-only and open-world with a title", () => {
+    const dataTools = [
+      "search-cellar",
+      "drinking-recommendations",
+      "cellar-stats",
+      "purchase-history",
+      "get-wishlist",
+      "consumption-history",
+      "tasting-notes",
+      "recent-deliveries",
+      "refresh-data",
+    ];
+    for (const name of dataTools) {
+      const tool = tools.find((t) => t.name === name);
+      expect(tool, `${name} should be registered`).toBeDefined();
+      expect(tool!.annotations?.readOnlyHint).toBe(true);
+      expect(tool!.annotations?.openWorldHint).toBe(true);
+      expect(tool!.annotations?.title).toBeTruthy();
+    }
+  });
+
+  it("marks setup-credentials as a write, network-calling tool", () => {
+    const tool = tools.find((t) => t.name === "setup-credentials");
+    expect(tool).toBeDefined();
+    expect(tool!.annotations?.readOnlyHint).toBe(false);
+    expect(tool!.annotations?.openWorldHint).toBe(true);
+    expect(tool!.annotations?.title).toBeTruthy();
+  });
+
+  it("marks clear-user-data as destructive, non-read-only, and local-only", () => {
+    const tool = tools.find((t) => t.name === "clear-user-data");
+    expect(tool).toBeDefined();
+    expect(tool!.annotations?.readOnlyHint).toBe(false);
+    expect(tool!.annotations?.destructiveHint).toBe(true);
+    // Explicit false matters: the spec default for openWorldHint is true,
+    // but this tool never touches the network
+    expect(tool!.annotations?.openWorldHint).toBe(false);
+    expect(tool!.annotations?.title).toBeTruthy();
   });
 });
 

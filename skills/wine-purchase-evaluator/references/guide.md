@@ -28,7 +28,7 @@ The skill automatically attempts to check your current wine collection inventory
 - Note producer overlap
 - Assess storage saturation
 
-**With MCP tools**: Uses `search_cellar`, `cellar_stats`, and `get_wishlist` for live data.
+**With MCP tools**: Uses `search-cellar`, `cellar-stats`, and `get-wishlist` for live data.
 **Without MCP tools**: Looks for uploaded CSV files (e.g., `CurrentWineCollection*.csv`, `List_latest.csv`).
 
 If no inventory data is available, evaluation continues with a note indicating inventory wasn't checked.
