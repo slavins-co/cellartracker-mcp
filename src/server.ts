@@ -84,6 +84,22 @@ export function wineUrl(iWine: string | undefined): string | undefined {
   return id ? `https://www.cellartracker.com/wine.asp?iWine=${id}` : undefined;
 }
 
+/** Clamp a caller-supplied pagination offset to a valid non-negative integer (default 0). */
+export function clampOffset(offset: number | undefined): number {
+  return offset && offset > 0 ? Math.floor(offset) : 0;
+}
+
+/**
+ * Build the "(Showing X-Y of Z. Pass offset=Y for the next page.)" footer for a
+ * paginated list, or undefined when the current page reaches the end of the
+ * result set (nothing left to page through).
+ */
+export function paginationFooter(offset: number, shownCount: number, total: number): string | undefined {
+  const shownTo = offset + shownCount;
+  if (shownTo >= total) return undefined;
+  return `(Showing ${offset + 1}-${shownTo} of ${total}. Pass offset=${shownTo} for the next page.)`;
+}
+
 /** Trimmed non-empty string, else undefined — for omit-when-absent structured fields. */
 function str(v: string | undefined): string | undefined {
   const s = (v ?? "").trim();
@@ -330,7 +346,7 @@ export function createServer(): McpServer {
       description:
         "Search your wine cellar by name, color, region, varietal, location, or vintage range. " +
         "The region parameter searches across Country, Region, SubRegion, Appellation, and Locale fields. " +
-        "Returns matching wines with details. Limited to 25 results.",
+        "Returns matching wines with details, up to 25 per page — pass offset to page through more.",
       inputSchema: {
         query: z.string().optional().describe("Wine name search term"),
         color: z.string().optional().describe("Filter by color (Red, White, Rosé)"),
@@ -339,11 +355,12 @@ export function createServer(): McpServer {
         location: z.string().optional().describe("Storage location"),
         vintage_min: z.number().optional().describe("Minimum vintage year"),
         vintage_max: z.number().optional().describe("Maximum vintage year"),
+        offset: z.number().optional().describe("Result offset for pagination (default 0)"),
       },
       outputSchema: searchCellarShape,
       annotations: { title: "Search Cellar", readOnlyHint: true, openWorldHint: true },
     },
-    async ({ query, color, region, varietal, location, vintage_min, vintage_max }) => {
+    async ({ query, color, region, varietal, location, vintage_min, vintage_max, offset }) => {
       const paths = await getFreshPaths();
       const listRows = loadTable(paths.List);
 
@@ -380,27 +397,39 @@ export function createServer(): McpServer {
       results = crossReference(results, availRows, "iWine");
 
       const total = results.length;
-      results = results.slice(0, 25);
+      const off = clampOffset(offset);
+      const shown = results.slice(off, off + 25);
 
-      if (results.length === 0) {
+      if (total === 0) {
         return {
           content: [{ type: "text", text: "No wines found matching your search criteria." }],
-          structuredContent: { total: 0, offset: 0, count: 0, wines: [] },
+          structuredContent: { total: 0, offset: off, count: 0, wines: [] },
+        };
+      }
+
+      if (shown.length === 0) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `No wines at offset ${off} (${total} total match your search). Try a smaller offset.`,
+            },
+          ],
+          structuredContent: { total, offset: off, count: 0, wines: [] },
         };
       }
 
       const lines = [`Found ${total} wine(s) in your cellar:\n`];
-      for (const row of results) {
+      for (const row of shown) {
         lines.push(fmtWine(row, true));
         lines.push("");
       }
-      if (total > 25) {
-        lines.push(`(Showing 25 of ${total} results. Narrow your search for more specific results.)`);
-      }
+      const footer = paginationFooter(off, shown.length, total);
+      if (footer) lines.push(footer);
 
       return {
         content: [{ type: "text", text: lines.join("\n") }],
-        structuredContent: { total, offset: 0, count: results.length, wines: results.map(toWineRow) },
+        structuredContent: { total, offset: off, count: shown.length, wines: shown.map(toWineRow) },
       };
     }
   );
@@ -790,7 +819,8 @@ export function createServer(): McpServer {
         "barcode digits from the image and pass them as the barcode filter. " +
         "Location and Bin are account-specific labels, not physical descriptions " +
         "— if a location/bin filter finds nothing, use cellar-stats with " +
-        "group_by=location or group_by=bin to see the actual values in use.",
+        "group_by=location or group_by=bin to see the actual values in use. " +
+        "Returns up to max_results per page (default 25) — pass offset to page through more.",
       inputSchema: {
         query: z.string().optional().describe("Wine name search term"),
         location: z.string().optional().describe("Storage location (e.g. 'Wine Fridge')"),
@@ -802,13 +832,15 @@ export function createServer(): McpServer {
           .optional()
           .describe("Which bottles: 'cellar', 'consumed', or 'all' (default)"),
         max_results: z.number().optional().describe("Maximum results (default 25)"),
+        offset: z.number().optional().describe("Result offset for pagination (default 0)"),
       },
       outputSchema: bottleDetailsShape,
       annotations: { title: "Bottle Details", readOnlyHint: true, openWorldHint: true },
     },
-    async ({ query, location, bin, size, barcode, state, max_results }) => {
+    async ({ query, location, bin, size, barcode, state, max_results, offset }) => {
       // Guard non-positive max_results (0/negative would corrupt slice(0, n)).
       const maxResults = max_results && max_results > 0 ? max_results : 25;
+      const off = clampOffset(offset);
       const paths = await getFreshPaths();
       const bottleRows = loadTable(paths.Bottles);
 
@@ -819,7 +851,7 @@ export function createServer(): McpServer {
       );
 
       if (matches.length === 0) {
-        const emptyResult = { total: 0, offset: 0, count: 0, bottles: [] };
+        const emptyResult = { total: 0, offset: off, count: 0, bottles: [] };
         // A location/bin miss deserves a different message: CT Location/Bin are
         // opaque account labels, so name the discovery path. But only when the
         // location/bin value itself matched nothing — if it matches rows on its
@@ -850,7 +882,19 @@ export function createServer(): McpServer {
       }
 
       const total = matches.length;
-      const shown = matches.slice(0, maxResults);
+      const shown = matches.slice(off, off + maxResults);
+
+      if (shown.length === 0) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `No bottles at offset ${off} (${total} total match your criteria). Try a smaller offset.`,
+            },
+          ],
+          structuredContent: { total, offset: off, count: 0, bottles: [] },
+        };
+      }
 
       const stateLabel = (row: Row): string =>
         isInCellar(row) ? "In cellar" : row.BottleState === "0" ? "Consumed" : "Unknown state";
@@ -874,13 +918,12 @@ export function createServer(): McpServer {
         }
         lines.push("");
       }
-      if (total > maxResults) {
-        lines.push(`(Showing ${maxResults} of ${total} results. Narrow your search for more specific results.)`);
-      }
+      const footer = paginationFooter(off, shown.length, total);
+      if (footer) lines.push(footer);
 
       return {
         content: [{ type: "text", text: lines.join("\n") }],
-        structuredContent: { total, offset: 0, count: shown.length, bottles: shown.map(toBottleRow) },
+        structuredContent: { total, offset: off, count: shown.length, bottles: shown.map(toBottleRow) },
       };
     }
   );
@@ -950,19 +993,22 @@ export function createServer(): McpServer {
       description:
         "Search your consumption history — wines you've opened and drunk. " +
         "Filter by wine name, color, or date range. " +
-        "Returns most recent consumptions first with tasting context. Limited to 25 results.",
+        "Returns most recent consumptions first with tasting context, up to " +
+        "max_results per page (default 25) — pass offset to page through more.",
       inputSchema: {
         query: z.string().optional().describe("Wine name search term"),
         color: z.string().optional().describe("Filter by color (Red, White, Rosé)"),
         date_from: z.string().optional().describe("Start date (YYYY-MM-DD)"),
         date_to: z.string().optional().describe("End date (YYYY-MM-DD)"),
         max_results: z.number().optional().describe("Maximum results (default 25)"),
+        offset: z.number().optional().describe("Result offset for pagination (default 0)"),
       },
       outputSchema: consumptionHistoryShape,
       annotations: { title: "Consumption History", readOnlyHint: true, openWorldHint: true },
     },
-    async ({ query, color, date_from, date_to, max_results }) => {
+    async ({ query, color, date_from, date_to, max_results, offset }) => {
       const maxResults = max_results ?? 25;
+      const off = clampOffset(offset);
       const paths = await getFreshPaths();
       const consumedRows = loadTable(paths.Consumed);
 
@@ -983,17 +1029,29 @@ export function createServer(): McpServer {
       results.sort((a, b) => toIsoDate(b.Consumed).localeCompare(toIsoDate(a.Consumed)));
 
       const total = results.length;
-      results = results.slice(0, maxResults);
+      const shown = results.slice(off, off + maxResults);
 
-      if (results.length === 0) {
+      if (total === 0) {
         return {
           content: [{ type: "text", text: "No consumption records found matching your criteria." }],
-          structuredContent: { total: 0, offset: 0, count: 0, rows: [] },
+          structuredContent: { total: 0, offset: off, count: 0, rows: [] },
+        };
+      }
+
+      if (shown.length === 0) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `No consumption records at offset ${off} (${total} total match your criteria). Try a smaller offset.`,
+            },
+          ],
+          structuredContent: { total, offset: off, count: 0, rows: [] },
         };
       }
 
       const lines = [`Found ${total} consumption record(s):\n`];
-      for (const row of results) {
+      for (const row of shown) {
         const vintage = vintageLabel(row);
         const wine = row.Wine ?? "Unknown";
         const date = row.Consumed ?? "?";
@@ -1009,13 +1067,12 @@ export function createServer(): McpServer {
         if (notes) lines.push(`    Notes: ${notes}`);
         lines.push("");
       }
-      if (total > maxResults) {
-        lines.push(`(Showing ${maxResults} of ${total} results. Narrow your search for more specific results.)`);
-      }
+      const footer = paginationFooter(off, shown.length, total);
+      if (footer) lines.push(footer);
 
       return {
         content: [{ type: "text", text: lines.join("\n") }],
-        structuredContent: { total, offset: 0, count: results.length, rows: results.map(toConsumptionRow) },
+        structuredContent: { total, offset: off, count: shown.length, rows: shown.map(toConsumptionRow) },
       };
     }
   );
@@ -1027,18 +1084,21 @@ export function createServer(): McpServer {
       description:
         "Search your tasting notes and reviews. " +
         "Filter by wine name, color, or minimum rating. " +
-        "Returns notes with ratings, scores, and tasting details. Limited to 25 results.",
+        "Returns notes with ratings, scores, and tasting details, up to " +
+        "max_results per page (default 25) — pass offset to page through more.",
       inputSchema: {
         query: z.string().optional().describe("Wine name search term"),
         color: z.string().optional().describe("Filter by color (Red, White, Rosé)"),
         min_rating: z.number().optional().describe("Minimum rating filter"),
         max_results: z.number().optional().describe("Maximum results (default 25)"),
+        offset: z.number().optional().describe("Result offset for pagination (default 0)"),
       },
       outputSchema: tastingNotesShape,
       annotations: { title: "Tasting Notes", readOnlyHint: true, openWorldHint: true },
     },
-    async ({ query, color, min_rating, max_results }) => {
+    async ({ query, color, min_rating, max_results, offset }) => {
       const maxResults = max_results ?? 25;
+      const off = clampOffset(offset);
       const paths = await getFreshPaths();
       const notesRows = loadTable(paths.Notes);
 
@@ -1059,17 +1119,29 @@ export function createServer(): McpServer {
       results.sort((a, b) => toIsoDate(b.TastingDate).localeCompare(toIsoDate(a.TastingDate)));
 
       const total = results.length;
-      results = results.slice(0, maxResults);
+      const shown = results.slice(off, off + maxResults);
 
-      if (results.length === 0) {
+      if (total === 0) {
         return {
           content: [{ type: "text", text: "No tasting notes found matching your criteria." }],
-          structuredContent: { total: 0, offset: 0, count: 0, rows: [] },
+          structuredContent: { total: 0, offset: off, count: 0, rows: [] },
+        };
+      }
+
+      if (shown.length === 0) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `No tasting notes at offset ${off} (${total} total match your criteria). Try a smaller offset.`,
+            },
+          ],
+          structuredContent: { total, offset: off, count: 0, rows: [] },
         };
       }
 
       const lines = [`Found ${total} tasting note(s):\n`];
-      for (const row of results) {
+      for (const row of shown) {
         const vintage = vintageLabel(row);
         const wine = row.Wine ?? "Unknown";
         const date = row.TastingDate ?? "?";
@@ -1085,13 +1157,12 @@ export function createServer(): McpServer {
         if (notes) lines.push(`    Notes: ${notes}`);
         lines.push("");
       }
-      if (total > maxResults) {
-        lines.push(`(Showing ${maxResults} of ${total} results. Narrow your search for more specific results.)`);
-      }
+      const footer = paginationFooter(off, shown.length, total);
+      if (footer) lines.push(footer);
 
       return {
         content: [{ type: "text", text: lines.join("\n") }],
-        structuredContent: { total, offset: 0, count: results.length, rows: results.map(toTastingRow) },
+        structuredContent: { total, offset: off, count: shown.length, rows: shown.map(toTastingRow) },
       };
     }
   );
