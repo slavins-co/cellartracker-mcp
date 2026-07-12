@@ -158,11 +158,13 @@ export function clearUserData(opts: { credentials: boolean; cache: boolean }): C
     } catch {
       files = [];
     }
-    // Only remove known table CSVs (timestamped or _latest) — a shared
-    // CT_CACHE_DIR may hold unrelated files that must survive.
-    const tableNames = Object.keys(TABLES);
-    const isTableCsv = (f: string): boolean =>
-      f.endsWith(".csv") && tableNames.some((t) => f.startsWith(`${t}_`));
+    // Only remove known table CSVs matching exporter.ts's exact naming
+    // convention (`<Table>_YYYYMMDD_HHMMSS.csv` or `<Table>_latest.csv`) —
+    // a shared CT_CACHE_DIR may hold unrelated same-prefix files that must survive.
+    const tablePatterns = Object.keys(TABLES).map(
+      (t) => new RegExp(`^${t}_(\\d{8}_\\d{6}|latest)\\.csv$`)
+    );
+    const isTableCsv = (f: string): boolean => tablePatterns.some((re) => re.test(f));
     for (const f of files) {
       if (!isTableCsv(f)) continue;
       try {

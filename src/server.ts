@@ -38,10 +38,15 @@ export function formatScores(row: Row, fields: string[] = ALL_SCORE_FIELDS): str
   const parts: string[] = [];
   for (const field of fields) {
     const raw = (row[field] ?? "").trim();
-    if (!raw || raw === "0" || raw === "0.0") continue;
+    if (!raw) continue;
     const num = parseFloat(raw);
-    const val = isNaN(num) ? raw : String(Math.round(num * 10) / 10);
-    parts.push(`${field}:${val}`);
+    if (isNaN(num)) {
+      parts.push(`${field}:${raw}`);
+      continue;
+    }
+    const rounded = Math.round(num * 10) / 10;
+    if (rounded === 0) continue;
+    parts.push(`${field}:${rounded}`);
   }
   return parts.length > 0 ? parts.join(", ") : "no scores";
 }

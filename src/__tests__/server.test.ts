@@ -48,6 +48,11 @@ describe("formatScores", () => {
     expect(formatScores(row, ["CT", "WA", "WS"])).toBe("WS:95.5");
   });
 
+  it("excludes a near-zero value that rounds down to the zero sentinel", () => {
+    const row = { CT: "0.04" };
+    expect(formatScores(row, ["CT"])).toBe("no scores");
+  });
+
   it("returns 'no scores' when nothing is present", () => {
     expect(formatScores({}, ["CT"])).toBe("no scores");
   });
