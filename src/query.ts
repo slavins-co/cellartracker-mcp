@@ -38,7 +38,17 @@ export function loadTable(csvPath: string): Row[] {
 }
 
 /**
- * Case-insensitive substring match on column values.
+ * Fold a string for diacritic-insensitive comparison: NFD-normalize, strip
+ * combining marks, and lowercase. Wine data is saturated with diacritics
+ * (Côte, Rhône, Grüner) that US keyboards don't produce, so plain-ASCII
+ * queries need to match accented data and vice versa.
+ */
+export function foldDiacritics(s: string): string {
+  return s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+}
+
+/**
+ * Diacritic-insensitive substring match on column values.
  * Example: search(rows, { Color: "red", Region: "burg" })
  */
 export function search(rows: Row[], filters: Record<string, string | undefined>): Row[] {
@@ -49,7 +59,7 @@ export function search(rows: Row[], filters: Record<string, string | undefined>)
 
   return rows.filter((row) =>
     activeFilters.every(([col, term]) =>
-      (row[col] ?? "").toLowerCase().includes(term.toLowerCase())
+      foldDiacritics(row[col] ?? "").includes(foldDiacritics(term))
     )
   );
 }

@@ -2,6 +2,8 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import {
   aggregate,
   parseCsv,
+  search,
+  foldDiacritics,
   toIsoDate,
   drinkingPriority,
   spendSummary,
@@ -84,6 +86,59 @@ describe("parseCsv", () => {
     expect(rows[0].Wine).toBe("Opus One");
     expect(rows[0].Price).toBe("350");
     expect(rows[0].Notes).toBe("Rich, bold, complex");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// foldDiacritics
+// ---------------------------------------------------------------------------
+describe("foldDiacritics", () => {
+  it("strips combining marks and lowercases", () => {
+    expect(foldDiacritics("Rhône")).toBe("rhone");
+    expect(foldDiacritics("Côte")).toBe("cote");
+    expect(foldDiacritics("Grüner")).toBe("gruner");
+  });
+
+  it("leaves plain ASCII behavior equivalent to lowercasing", () => {
+    expect(foldDiacritics("RHONE")).toBe("rhone");
+    expect(foldDiacritics("Chateauneuf")).toBe("chateauneuf");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// search
+// ---------------------------------------------------------------------------
+describe("search", () => {
+  it("matches a plain-ASCII query against accented data", () => {
+    const rows: Row[] = [{ Wine: "Côtes du Rhône" }, { Wine: "Napa Cabernet" }];
+    const result = search(rows, { Wine: "rhone" });
+    expect(result).toHaveLength(1);
+    expect(result[0].Wine).toBe("Côtes du Rhône");
+  });
+
+  it("matches an accented query against plain-ASCII data", () => {
+    const rows: Row[] = [{ Wine: "Rhone Valley Blend" }, { Wine: "Napa Cabernet" }];
+    const result = search(rows, { Wine: "Rhône" });
+    expect(result).toHaveLength(1);
+    expect(result[0].Wine).toBe("Rhone Valley Blend");
+  });
+
+  it("matches cote/Côte and gruner/Grüner bidirectionally", () => {
+    const rows: Row[] = [
+      { Wine: "Côte Rôtie" },
+      { Wine: "Cote Blend" },
+      { Wine: "Grüner Veltliner" },
+      { Wine: "Gruner Selection" },
+    ];
+    expect(search(rows, { Wine: "cote" }).map((r) => r.Wine)).toEqual(["Côte Rôtie", "Cote Blend"]);
+    expect(search(rows, { Wine: "Côte" }).map((r) => r.Wine)).toEqual(["Côte Rôtie", "Cote Blend"]);
+    expect(search(rows, { Wine: "gruner" }).map((r) => r.Wine)).toEqual(["Grüner Veltliner", "Gruner Selection"]);
+    expect(search(rows, { Wine: "Grüner" }).map((r) => r.Wine)).toEqual(["Grüner Veltliner", "Gruner Selection"]);
+  });
+
+  it("returns all rows when no filters are active", () => {
+    const rows: Row[] = [{ Wine: "A" }, { Wine: "B" }];
+    expect(search(rows, { Wine: undefined })).toEqual(rows);
   });
 });
 
