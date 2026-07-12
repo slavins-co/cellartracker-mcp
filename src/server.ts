@@ -132,6 +132,7 @@ export function createServer(): McpServer {
       vintage_min: z.number().optional().describe("Minimum vintage year"),
       vintage_max: z.number().optional().describe("Maximum vintage year"),
     },
+    { title: "Search Cellar", readOnlyHint: true, openWorldHint: true },
     async ({ query, color, region, varietal, location, vintage_min, vintage_max }) => {
       const paths = await getFreshPaths();
       const listRows = loadTable(paths.List);
@@ -199,6 +200,7 @@ export function createServer(): McpServer {
       occasion: z.string().optional().describe("Occasion description"),
       max_results: z.number().optional().describe("Maximum results (default 10)"),
     },
+    { title: "Drinking Recommendations", readOnlyHint: true, openWorldHint: true },
     async ({ color, occasion, max_results }) => {
       const maxResults = max_results ?? 10;
       const paths = await getFreshPaths();
@@ -255,6 +257,7 @@ export function createServer(): McpServer {
     {
       group_by: z.string().optional().describe("Breakdown dimension"),
     },
+    { title: "Cellar Statistics", readOnlyHint: true, openWorldHint: true },
     async ({ group_by }) => {
       const paths = await getFreshPaths();
       const listRows = loadTable(paths.List);
@@ -338,6 +341,7 @@ export function createServer(): McpServer {
       date_from: z.string().optional().describe("Start date (YYYY-MM-DD)"),
       date_to: z.string().optional().describe("End date (YYYY-MM-DD)"),
     },
+    { title: "Purchase History", readOnlyHint: true, openWorldHint: true },
     async ({ query, store, date_from, date_to }) => {
       const paths = await getFreshPaths();
       const purchaseRows = loadTable(paths.Purchase);
@@ -401,6 +405,7 @@ export function createServer(): McpServer {
       date_to: z.string().optional().describe("End delivery date (YYYY-MM-DD). Defaults to today."),
       store: z.string().optional().describe("Store name filter"),
     },
+    { title: "Recent Deliveries", readOnlyHint: true, openWorldHint: true },
     async ({ date_from, date_to, store }) => {
       const paths = await getFreshPaths();
       const purchaseRows = loadTable(paths.Purchase);
@@ -441,6 +446,7 @@ export function createServer(): McpServer {
     {
       query: z.string().optional().describe("Search term"),
     },
+    { title: "View Wishlist", readOnlyHint: true, openWorldHint: true },
     async ({ query }) => {
       const paths = await getFreshPaths();
       const tagRows = loadTable(paths.Tag);
@@ -494,6 +500,7 @@ export function createServer(): McpServer {
       date_to: z.string().optional().describe("End date (YYYY-MM-DD)"),
       max_results: z.number().optional().describe("Maximum results (default 25)"),
     },
+    { title: "Consumption History", readOnlyHint: true, openWorldHint: true },
     async ({ query, color, date_from, date_to, max_results }) => {
       const maxResults = max_results ?? 25;
       const paths = await getFreshPaths();
@@ -559,6 +566,7 @@ export function createServer(): McpServer {
       min_rating: z.number().optional().describe("Minimum rating filter"),
       max_results: z.number().optional().describe("Maximum results (default 25)"),
     },
+    { title: "Tasting Notes", readOnlyHint: true, openWorldHint: true },
     async ({ query, color, min_rating, max_results }) => {
       const maxResults = max_results ?? 25;
       const paths = await getFreshPaths();
@@ -618,6 +626,7 @@ export function createServer(): McpServer {
     "Force refresh all CellarTracker data from the server. " +
       "Downloads fresh CSV exports for all 8 tables regardless of cache age.",
     {},
+    { title: "Refresh Cellar Data", readOnlyHint: true, openWorldHint: true },
     async () => {
       const { username, password } = getCredentials();
       const cacheDir = getCacheDir();
@@ -656,6 +665,7 @@ export function createServer(): McpServer {
         username: z.string().describe("Your CellarTracker username"),
         password: z.string().describe("Your CellarTracker password"),
       },
+      { readOnlyHint: false, openWorldHint: true },
       async ({ username, password }) => {
         // Validate locally before sending anything to CellarTracker
         if (/[\r\n\0]/.test(username) || /[\r\n\0]/.test(password)) {
@@ -752,6 +762,7 @@ export function createServer(): McpServer {
         clear_credentials: z.boolean().optional().describe("Delete saved credentials (default true)"),
         clear_cache: z.boolean().optional().describe("Delete cached CSV exports (default true)"),
       },
+      { readOnlyHint: false, destructiveHint: true },
       async ({ clear_credentials, clear_cache }) => {
         const result = clearUserData({
           credentials: clear_credentials ?? true,

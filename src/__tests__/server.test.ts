@@ -2,7 +2,9 @@ import { describe, it, expect } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { formatScores } from "../server.js";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { createServer, formatScores } from "../server.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -55,6 +57,56 @@ describe("formatScores", () => {
 
   it("returns 'no scores' when nothing is present", () => {
     expect(formatScores({}, ["CT"])).toBe("no scores");
+  });
+});
+
+describe("tool annotations", () => {
+  async function listToolsLive() {
+    const server = createServer();
+    const client = new Client({ name: "test-client", version: "0.0.0" });
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    await Promise.all([client.connect(clientTransport), server.connect(serverTransport)]);
+    const { tools } = await client.listTools();
+    await client.close();
+    return tools;
+  }
+
+  it("marks all data-query tools read-only and open-world with a title", async () => {
+    const tools = await listToolsLive();
+    const dataTools = [
+      "search-cellar",
+      "drinking-recommendations",
+      "cellar-stats",
+      "purchase-history",
+      "get-wishlist",
+      "consumption-history",
+      "tasting-notes",
+      "recent-deliveries",
+      "refresh-data",
+    ];
+    for (const name of dataTools) {
+      const tool = tools.find((t) => t.name === name);
+      expect(tool, `${name} should be registered`).toBeDefined();
+      expect(tool!.annotations?.readOnlyHint).toBe(true);
+      expect(tool!.annotations?.openWorldHint).toBe(true);
+      expect(tool!.annotations?.title).toBeTruthy();
+    }
+  });
+
+  it("marks setup-credentials as a write, network-calling tool", async () => {
+    const tools = await listToolsLive();
+    const tool = tools.find((t) => t.name === "setup-credentials");
+    if (!tool) return; // only registered when CT_USERNAME/CT_PASSWORD env vars are absent
+    expect(tool.annotations?.readOnlyHint).toBe(false);
+    expect(tool.annotations?.openWorldHint).toBe(true);
+  });
+
+  it("marks clear-user-data as destructive and non-read-only", async () => {
+    const tools = await listToolsLive();
+    const tool = tools.find((t) => t.name === "clear-user-data");
+    if (!tool) return; // only registered when CT_USERNAME/CT_PASSWORD env vars are absent
+    expect(tool.annotations?.readOnlyHint).toBe(false);
+    expect(tool.annotations?.destructiveHint).toBe(true);
   });
 });
 
