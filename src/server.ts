@@ -16,6 +16,7 @@ import {
   crossReference,
   deliverySummary,
   drinkingPriority,
+  foldDiacritics,
   loadTable,
   search,
   spendSummary,
@@ -145,10 +146,10 @@ export function createServer(): McpServer {
 
       // Region searches across all geographic fields
       if (region) {
-        const term = region.toLowerCase();
+        const term = foldDiacritics(region);
         const geoFields = ["Country", "Region", "SubRegion", "Appellation", "Locale"];
         results = results.filter((row) =>
-          geoFields.some((f) => (row[f] ?? "").toLowerCase().includes(term))
+          geoFields.some((f) => foldDiacritics(row[f] ?? "").includes(term))
         );
       }
 
@@ -447,14 +448,13 @@ export function createServer(): McpServer {
       let wishlist = tagRows.filter((r) => (r.ListName ?? "") === "*Wishlist");
 
       if (query) {
-        const term = query.toLowerCase();
+        const term = foldDiacritics(query);
         wishlist = wishlist.filter((row) => {
-          const searchable = [
-            row.Wine, row.WineName, row.Region, row.Varietal, row.Country,
-          ]
-            .filter(Boolean)
-            .join(" ")
-            .toLowerCase();
+          const searchable = foldDiacritics(
+            [row.Wine, row.WineName, row.Region, row.Varietal, row.Country]
+              .filter(Boolean)
+              .join(" ")
+          );
           return searchable.includes(term);
         });
       }

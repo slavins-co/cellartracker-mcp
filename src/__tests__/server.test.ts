@@ -57,3 +57,25 @@ describe("formatScores", () => {
     expect(formatScores({}, ["CT"])).toBe("no scores");
   });
 });
+
+describe("diacritic-insensitive filters in server.ts", () => {
+  const serverSrc = fs.readFileSync(path.resolve(__dirname, "../server.ts"), "utf-8");
+
+  it("search-cellar's region filter uses foldDiacritics, not raw toLowerCase", () => {
+    const block = serverSrc.slice(
+      serverSrc.indexOf("// Region searches across all geographic fields"),
+      serverSrc.indexOf("// Apply vintage range filter")
+    );
+    expect(block).toMatch(/foldDiacritics/);
+    expect(block).not.toMatch(/\.toLowerCase\(\)/);
+  });
+
+  it("get-wishlist's query filter uses foldDiacritics, not raw toLowerCase", () => {
+    const block = serverSrc.slice(
+      serverSrc.indexOf('"get-wishlist"'),
+      serverSrc.indexOf('"consumption-history"')
+    );
+    expect(block).toMatch(/foldDiacritics/);
+    expect(block).not.toMatch(/\.toLowerCase\(\)/);
+  });
+});

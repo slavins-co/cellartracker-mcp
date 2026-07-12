@@ -26,3 +26,5 @@
 - [x] #45 — Auth detection via exact not-logged-in marker; other HTML → ServiceError (PR #73)
 - [x] #47 — Retry network errors + 5xx with jittered backoff in fetchTable; tiered timeouts bound worst case (PR #73)
 - [x] #46 — Small robustness batch: scoped cache deletion, score rounding, date-parse warning, vintageLabel() extraction (PR #74)
+- [x] #48 — Diacritic-insensitive search: foldDiacritics() helper applied to search(), region filter, wishlist filter; extended with a LETTERFORM_FOLDS map (ß→ss, æ/œ/ø) after real-data analysis found ß in 24 fields ("Großes Gewächs") that NFD couldn't fold (PR #75)
+- [ ] Follow-up (from #48): LETTERFORM_FOLDS covers the letterforms present/plausible in the current data (German ß + European ligatures). Explicitly deferred: Greek-script producer names (none in data; would need transliteration, not a char map) and other Latin letterforms (ł/đ/þ/ð/ı — absent from data). Extend the map if a real miss surfaces.

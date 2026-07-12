@@ -38,18 +38,49 @@ export function loadTable(csvPath: string): Row[] {
 }
 
 /**
- * Case-insensitive substring match on column values.
+ * Standalone letterforms with no NFD combining-mark decomposition, so the
+ * NFD + `\p{M}`-strip pass can't fold them. Keyed on the lowercase form
+ * (the substitution runs after `.toLowerCase()`, which collapses uppercase
+ * variants like Œ/Ø/ẞ onto these keys). Covers European wine-producer
+ * naming — German ß (24× in real data: "Großes Gewächs", "Faß"), French/
+ * Nordic ligatures. Extend as real misses surface (Greek script, other
+ * Latin letterforms like ł/đ/þ are not currently present in the data).
+ */
+const LETTERFORM_FOLDS: Record<string, string> = {
+  "ß": "ss",
+  "æ": "ae",
+  "œ": "oe",
+  "ø": "o",
+};
+
+/**
+ * Fold a string for diacritic-insensitive comparison: NFD-normalize, strip
+ * combining marks, lowercase, then fold non-decomposable letterforms. Wine
+ * data is saturated with diacritics (Côte, Rhône, Grüner, Großes) that US
+ * keyboards don't produce, so plain-ASCII queries need to match accented
+ * data and vice versa.
+ */
+export function foldDiacritics(s: string): string {
+  let out = s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+  for (const [from, to] of Object.entries(LETTERFORM_FOLDS)) {
+    if (out.includes(from)) out = out.split(from).join(to);
+  }
+  return out;
+}
+
+/**
+ * Diacritic-insensitive substring match on column values.
  * Example: search(rows, { Color: "red", Region: "burg" })
  */
 export function search(rows: Row[], filters: Record<string, string | undefined>): Row[] {
-  const activeFilters = Object.entries(filters).filter(
+  const activeFilters = (Object.entries(filters).filter(
     ([, v]) => v !== undefined && v !== ""
-  ) as [string, string][];
+  ) as [string, string][]).map(([col, term]) => [col, foldDiacritics(term)] as [string, string]);
   if (activeFilters.length === 0) return rows;
 
   return rows.filter((row) =>
     activeFilters.every(([col, term]) =>
-      (row[col] ?? "").toLowerCase().includes(term.toLowerCase())
+      foldDiacritics(row[col] ?? "").includes(term)
     )
   );
 }
