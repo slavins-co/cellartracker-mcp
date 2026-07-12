@@ -661,6 +661,19 @@ describe("pendingOrders", () => {
     expect(result.orders[1].Wine).toBe("Newer");
   });
 
+  it("sorts a row with a missing PurchaseDate to the end, not the start", () => {
+    // toIsoDate() maps missing/unparseable dates to "" — an ascending sort
+    // on the raw string would put "" (this row) first, the opposite of
+    // every other date sort in query.ts, which treats "" as sorting last.
+    const rows = [
+      makePendingRow("Unknown Date", "", "false", "1"),
+      makePendingRow("Older", "6/2/2026", "false", "1"),
+      makePendingRow("Newer", "6/20/2026", "false", "1"),
+    ];
+    const result = pendingOrders(rows);
+    expect(result.orders.map((r) => r.Wine)).toEqual(["Older", "Newer", "Unknown Date"]);
+  });
+
   it("returns zeros for empty input", () => {
     const result = pendingOrders([]);
     expect(result.line_count).toBe(0);

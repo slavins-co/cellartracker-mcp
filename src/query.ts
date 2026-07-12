@@ -354,9 +354,13 @@ export interface PendingOrdersResult {
  * first, so the longest-waiting orders surface first.
  */
 export function pendingOrders(pendingRows: Row[]): PendingOrdersResult {
+  // toIsoDate() returns "" for missing/unparseable dates, sentineled here to
+  // sort last — an ascending sort would otherwise put unknown-date rows
+  // first, the opposite of every other date sort in this file.
+  const sortDate = (r: Row) => toIsoDate(r.PurchaseDate) || "9999-99-99";
   const orders = pendingRows
     .filter((r) => String(r.Delivered).toLowerCase() !== "true")
-    .sort((a, b) => toIsoDate(a.PurchaseDate).localeCompare(toIsoDate(b.PurchaseDate)));
+    .sort((a, b) => sortDate(a).localeCompare(sortDate(b)));
 
   const bottleCount = orders.reduce((sum, r) => sum + safeInt(r.Quantity, 0), 0);
 
