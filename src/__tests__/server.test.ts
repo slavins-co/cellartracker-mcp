@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -61,18 +61,31 @@ describe("formatScores", () => {
 });
 
 describe("tool annotations", () => {
-  async function listToolsLive() {
+  const originalEnv = { CT_USERNAME: process.env.CT_USERNAME, CT_PASSWORD: process.env.CT_PASSWORD };
+  let tools: Awaited<ReturnType<Client["listTools"]>>["tools"];
+
+  beforeAll(async () => {
+    // Clear env credentials so setup-credentials/clear-user-data are deterministically
+    // registered, regardless of the ambient shell environment running the suite.
+    delete process.env.CT_USERNAME;
+    delete process.env.CT_PASSWORD;
+
     const server = createServer();
     const client = new Client({ name: "test-client", version: "0.0.0" });
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
     await Promise.all([client.connect(clientTransport), server.connect(serverTransport)]);
-    const { tools } = await client.listTools();
-    await client.close();
-    return tools;
-  }
+    ({ tools } = await client.listTools());
+    await Promise.all([client.close(), server.close()]);
+  });
 
-  it("marks all data-query tools read-only and open-world with a title", async () => {
-    const tools = await listToolsLive();
+  afterAll(() => {
+    if (originalEnv.CT_USERNAME !== undefined) process.env.CT_USERNAME = originalEnv.CT_USERNAME;
+    else delete process.env.CT_USERNAME;
+    if (originalEnv.CT_PASSWORD !== undefined) process.env.CT_PASSWORD = originalEnv.CT_PASSWORD;
+    else delete process.env.CT_PASSWORD;
+  });
+
+  it("marks all data-query tools read-only and open-world with a title", () => {
     const dataTools = [
       "search-cellar",
       "drinking-recommendations",
@@ -93,20 +106,18 @@ describe("tool annotations", () => {
     }
   });
 
-  it("marks setup-credentials as a write, network-calling tool", async () => {
-    const tools = await listToolsLive();
+  it("marks setup-credentials as a write, network-calling tool", () => {
     const tool = tools.find((t) => t.name === "setup-credentials");
-    if (!tool) return; // only registered when CT_USERNAME/CT_PASSWORD env vars are absent
-    expect(tool.annotations?.readOnlyHint).toBe(false);
-    expect(tool.annotations?.openWorldHint).toBe(true);
+    expect(tool).toBeDefined();
+    expect(tool!.annotations?.readOnlyHint).toBe(false);
+    expect(tool!.annotations?.openWorldHint).toBe(true);
   });
 
-  it("marks clear-user-data as destructive and non-read-only", async () => {
-    const tools = await listToolsLive();
+  it("marks clear-user-data as destructive and non-read-only", () => {
     const tool = tools.find((t) => t.name === "clear-user-data");
-    if (!tool) return; // only registered when CT_USERNAME/CT_PASSWORD env vars are absent
-    expect(tool.annotations?.readOnlyHint).toBe(false);
-    expect(tool.annotations?.destructiveHint).toBe(true);
+    expect(tool).toBeDefined();
+    expect(tool!.annotations?.readOnlyHint).toBe(false);
+    expect(tool!.annotations?.destructiveHint).toBe(true);
   });
 });
 
