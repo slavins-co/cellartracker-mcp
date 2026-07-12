@@ -103,6 +103,19 @@ describe("foldDiacritics", () => {
     expect(foldDiacritics("RHONE")).toBe("rhone");
     expect(foldDiacritics("Chateauneuf")).toBe("chateauneuf");
   });
+
+  it("folds German ß to ss (no NFD decomposition)", () => {
+    expect(foldDiacritics("Faß")).toBe("fass");
+    // Combines an NFD umlaut fold (ä→a) with the ß→ss substitution
+    expect(foldDiacritics("Großes Gewächs")).toBe("grosses gewachs");
+  });
+
+  it("folds European ligatures æ/œ/ø, including uppercase forms", () => {
+    expect(foldDiacritics("æ")).toBe("ae");
+    expect(foldDiacritics("Œil de Perdrix")).toBe("oeil de perdrix");
+    expect(foldDiacritics("Ø")).toBe("o");
+    expect(foldDiacritics("ẞ")).toBe("ss"); // capital sharp-s → ss
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -134,6 +147,16 @@ describe("search", () => {
     expect(search(rows, { Wine: "Côte" }).map((r) => r.Wine)).toEqual(["Côte Rôtie", "Cote Blend"]);
     expect(search(rows, { Wine: "gruner" }).map((r) => r.Wine)).toEqual(["Grüner Veltliner", "Gruner Selection"]);
     expect(search(rows, { Wine: "Grüner" }).map((r) => r.Wine)).toEqual(["Grüner Veltliner", "Gruner Selection"]);
+  });
+
+  it("matches an ASCII query against German ß data (real cellar case)", () => {
+    const rows: Row[] = [
+      { Wine: "Keller Großes Gewächs Riesling" },
+      { Wine: "Napa Cabernet" },
+    ];
+    expect(search(rows, { Wine: "grosses" }).map((r) => r.Wine)).toEqual([
+      "Keller Großes Gewächs Riesling",
+    ]);
   });
 
   it("returns all rows when no filters are active", () => {

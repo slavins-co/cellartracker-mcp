@@ -38,13 +38,34 @@ export function loadTable(csvPath: string): Row[] {
 }
 
 /**
+ * Standalone letterforms with no NFD combining-mark decomposition, so the
+ * NFD + `\p{M}`-strip pass can't fold them. Keyed on the lowercase form
+ * (the substitution runs after `.toLowerCase()`, which collapses uppercase
+ * variants like Œ/Ø/ẞ onto these keys). Covers European wine-producer
+ * naming — German ß (24× in real data: "Großes Gewächs", "Faß"), French/
+ * Nordic ligatures. Extend as real misses surface (Greek script, other
+ * Latin letterforms like ł/đ/þ are not currently present in the data).
+ */
+const LETTERFORM_FOLDS: Record<string, string> = {
+  "ß": "ss",
+  "æ": "ae",
+  "œ": "oe",
+  "ø": "o",
+};
+
+/**
  * Fold a string for diacritic-insensitive comparison: NFD-normalize, strip
- * combining marks, and lowercase. Wine data is saturated with diacritics
- * (Côte, Rhône, Grüner) that US keyboards don't produce, so plain-ASCII
- * queries need to match accented data and vice versa.
+ * combining marks, lowercase, then fold non-decomposable letterforms. Wine
+ * data is saturated with diacritics (Côte, Rhône, Grüner, Großes) that US
+ * keyboards don't produce, so plain-ASCII queries need to match accented
+ * data and vice versa.
  */
 export function foldDiacritics(s: string): string {
-  return s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+  let out = s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+  for (const [from, to] of Object.entries(LETTERFORM_FOLDS)) {
+    if (out.includes(from)) out = out.split(from).join(to);
+  }
+  return out;
 }
 
 /**
