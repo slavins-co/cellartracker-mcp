@@ -164,6 +164,96 @@ export function toWineRow(row: Row): WineRow {
   return out;
 }
 
+/** Map a Purchase/Pending row to the structured PurchaseRow shape. `dateField`
+ * selects PurchaseDate vs DeliveryDate; dates are ISO-normalized. */
+function toPurchaseRow(row: Row, dateField: string): PurchaseRow {
+  const out: PurchaseRow = {
+    date: toIsoDate(row[dateField]),
+    wine: row.Wine ?? "Unknown",
+    vintage: vintageLabel(row),
+  };
+  const price = numOrUndef(row.Price);
+  if (price !== undefined) out.price = price;
+  const quantity = intOrUndef(row.Quantity);
+  if (quantity !== undefined) out.quantity = quantity;
+  const store = str(row.StoreName);
+  if (store) out.store = store;
+  return out;
+}
+
+/** Map a Bottles row to the structured BottleRow shape. */
+function toBottleRow(row: Row): BottleRow {
+  const out: BottleRow = {
+    wine: row.Wine ?? "Unknown",
+    vintage: vintageLabel(row),
+    state: isInCellar(row) ? "In cellar" : row.BottleState === "0" ? "Consumed" : "Unknown state",
+  };
+  const barcode = str(row.Barcode);
+  if (barcode) out.barcode = barcode;
+  const location = str(row.Location);
+  if (location) out.location = location;
+  const bin = str(row.Bin);
+  if (bin) out.bin = bin;
+  const size = str(row.BottleSize);
+  if (size) out.size = size;
+  if (row.BottleState === "0") {
+    const consumedDate = toIsoDate(row.ConsumptionDate);
+    if (consumedDate) out.consumedDate = consumedDate;
+    const consumedType = str(row.ShortType ?? row.ConsumptionType);
+    if (consumedType) out.consumedType = consumedType;
+  }
+  return out;
+}
+
+/** Map a Tag (wishlist) row to the structured WishlistRow shape. */
+function toWishlistRow(row: Row): WishlistRow {
+  const out: WishlistRow = {
+    wine: row.Wine ?? row.WineName ?? "Unknown",
+    vintage: vintageLabel(row),
+  };
+  const notes = str(row.WinesNotes ?? row.Notes);
+  if (notes) out.notes = notes;
+  const maxPrice = str(row.MaxPrice ?? row.Price);
+  if (maxPrice) out.maxPrice = maxPrice;
+  return out;
+}
+
+/** Map a Consumed row to the structured ConsumptionRow shape. */
+function toConsumptionRow(row: Row): ConsumptionRow {
+  const out: ConsumptionRow = {
+    date: toIsoDate(row.Consumed),
+    wine: row.Wine ?? "Unknown",
+    vintage: vintageLabel(row),
+  };
+  const type = str(row.ShortType);
+  if (type) out.type = type;
+  const location = str(row.Location ?? row.Bin);
+  if (location) out.location = location;
+  const value = str(row.Value ?? row.Price);
+  if (value) out.value = value;
+  const notes = str(row.ConsumptionNote);
+  if (notes) out.notes = notes;
+  return out;
+}
+
+/** Map a Notes (tasting) row to the structured TastingRow shape. */
+function toTastingRow(row: Row): TastingRow {
+  const out: TastingRow = {
+    date: toIsoDate(row.TastingDate),
+    wine: row.Wine ?? "Unknown",
+    vintage: vintageLabel(row),
+  };
+  const rating = str(row.Rating);
+  if (rating) out.rating = rating;
+  const community = str(row.CScore);
+  if (community && community !== "0") out.community = community;
+  const event = [row.EventTitle, row.EventLocation].filter(Boolean).join(" — ");
+  if (event) out.event = event;
+  const notes = str(row.TastingNotes);
+  if (notes) out.notes = notes;
+  return out;
+}
+
 /** Format a single wine row into readable text. */
 function fmtWine(row: Row, includeScores = false): string {
   const wine = row.Wine ?? row.WineName ?? "Unknown";
@@ -233,21 +323,25 @@ export function createServer(): McpServer {
   });
 
   // --- search-cellar ---
-  server.tool(
+  server.registerTool(
     "search-cellar",
-    "Search your wine cellar by name, color, region, varietal, location, or vintage range. " +
-      "The region parameter searches across Country, Region, SubRegion, Appellation, and Locale fields. " +
-      "Returns matching wines with details. Limited to 25 results.",
     {
-      query: z.string().optional().describe("Wine name search term"),
-      color: z.string().optional().describe("Filter by color (Red, White, Rosé)"),
-      region: z.string().optional().describe("Region, country, or appellation"),
-      varietal: z.string().optional().describe("Grape varietal"),
-      location: z.string().optional().describe("Storage location"),
-      vintage_min: z.number().optional().describe("Minimum vintage year"),
-      vintage_max: z.number().optional().describe("Maximum vintage year"),
+      description:
+        "Search your wine cellar by name, color, region, varietal, location, or vintage range. " +
+        "The region parameter searches across Country, Region, SubRegion, Appellation, and Locale fields. " +
+        "Returns matching wines with details. Limited to 25 results.",
+      inputSchema: {
+        query: z.string().optional().describe("Wine name search term"),
+        color: z.string().optional().describe("Filter by color (Red, White, Rosé)"),
+        region: z.string().optional().describe("Region, country, or appellation"),
+        varietal: z.string().optional().describe("Grape varietal"),
+        location: z.string().optional().describe("Storage location"),
+        vintage_min: z.number().optional().describe("Minimum vintage year"),
+        vintage_max: z.number().optional().describe("Maximum vintage year"),
+      },
+      outputSchema: searchCellarShape,
+      annotations: { title: "Search Cellar", readOnlyHint: true, openWorldHint: true },
     },
-    { title: "Search Cellar", readOnlyHint: true, openWorldHint: true },
     async ({ query, color, region, varietal, location, vintage_min, vintage_max }) => {
       const paths = await getFreshPaths();
       const listRows = loadTable(paths.List);
@@ -288,7 +382,10 @@ export function createServer(): McpServer {
       results = results.slice(0, 25);
 
       if (results.length === 0) {
-        return { content: [{ type: "text", text: "No wines found matching your search criteria." }] };
+        return {
+          content: [{ type: "text", text: "No wines found matching your search criteria." }],
+          structuredContent: { total: 0, offset: 0, count: 0, wines: [] },
+        };
       }
 
       const lines = [`Found ${total} wine(s) in your cellar:\n`];
@@ -300,22 +397,29 @@ export function createServer(): McpServer {
         lines.push(`(Showing 25 of ${total} results. Narrow your search for more specific results.)`);
       }
 
-      return { content: [{ type: "text", text: lines.join("\n") }] };
+      return {
+        content: [{ type: "text", text: lines.join("\n") }],
+        structuredContent: { total, offset: 0, count: results.length, wines: results.map(toWineRow) },
+      };
     }
   );
 
   // --- drinking-recommendations ---
-  server.tool(
+  server.registerTool(
     "drinking-recommendations",
-    "Get wine drinking recommendations sorted by urgency. " +
-      "Prioritizes wines that are past peak, then those with closing windows, " +
-      "then wines currently in their drinking window. Optionally filter by color.",
     {
-      color: z.string().optional().describe("Filter by color"),
-      occasion: z.string().optional().describe("Occasion description"),
-      max_results: z.number().optional().describe("Maximum results (default 10)"),
+      description:
+        "Get wine drinking recommendations sorted by urgency. " +
+        "Prioritizes wines that are past peak, then those with closing windows, " +
+        "then wines currently in their drinking window. Optionally filter by color.",
+      inputSchema: {
+        color: z.string().optional().describe("Filter by color"),
+        occasion: z.string().optional().describe("Occasion description"),
+        max_results: z.number().optional().describe("Maximum results (default 10)"),
+      },
+      outputSchema: drinkingRecommendationsShape,
+      annotations: { title: "Drinking Recommendations", readOnlyHint: true, openWorldHint: true },
     },
-    { title: "Drinking Recommendations", readOnlyHint: true, openWorldHint: true },
     async ({ color, occasion, max_results }) => {
       const maxResults = max_results ?? 10;
       const paths = await getFreshPaths();
@@ -331,13 +435,17 @@ export function createServer(): McpServer {
       prioritized = prioritized.slice(0, maxResults);
 
       if (prioritized.length === 0) {
-        return { content: [{ type: "text", text: "No wines found matching your criteria." }] };
+        return {
+          content: [{ type: "text", text: "No wines found matching your criteria." }],
+          structuredContent: { recommendations: [] },
+        };
       }
 
       let header = "Drinking Recommendations";
       if (occasion) header += ` — ${occasion}`;
       if (color) header += ` (filtered: ${color})`;
 
+      const recommendations: (WineRow & { status: string; window: string })[] = [];
       const lines = [header, "=".repeat(header.length), ""];
       for (let i = 0; i < prioritized.length; i++) {
         const row = prioritized[i];
@@ -354,6 +462,8 @@ export function createServer(): McpServer {
 
         const link = wineUrl(row.iWine);
 
+        recommendations.push({ ...toWineRow(row), status, window });
+
         lines.push(`${i + 1}. ${vintage} ${wine}`);
         if (loc) lines.push(`   Location: ${loc}`);
         lines.push(`   Status: ${status}`);
@@ -363,19 +473,26 @@ export function createServer(): McpServer {
         lines.push("");
       }
 
-      return { content: [{ type: "text", text: lines.join("\n") }] };
+      return {
+        content: [{ type: "text", text: lines.join("\n") }],
+        structuredContent: { recommendations },
+      };
     }
   );
 
   // --- cellar-stats ---
-  server.tool(
+  server.registerTool(
     "cellar-stats",
-    "Get cellar statistics: total bottles, value, unique wines, and optional breakdowns. " +
-      "Valid group_by options: color, country, region, varietal, location, bin, category.",
     {
-      group_by: z.string().optional().describe("Breakdown dimension"),
+      description:
+        "Get cellar statistics: total bottles, value, unique wines, and optional breakdowns. " +
+        "Valid group_by options: color, country, region, varietal, location, bin, category.",
+      inputSchema: {
+        group_by: z.string().optional().describe("Breakdown dimension"),
+      },
+      outputSchema: cellarStatsShape,
+      annotations: { title: "Cellar Statistics", readOnlyHint: true, openWorldHint: true },
     },
-    { title: "Cellar Statistics", readOnlyHint: true, openWorldHint: true },
     async ({ group_by }) => {
       const paths = await getFreshPaths();
       const listRows = loadTable(paths.List);
@@ -406,6 +523,14 @@ export function createServer(): McpServer {
       const avgPerWine =
         winesSeen.size > 0 ? totalValue / winesSeen.size : 0;
 
+      const stats = {
+        totalBottles,
+        totalValue: Math.round(totalValue * 100) / 100,
+        uniqueWines: winesSeen.size,
+        avgPerWine: Math.round(avgPerWine * 100) / 100,
+      };
+      let breakdown: { dimension: string; rows: { key: string; bottles: number }[] } | undefined;
+
       const lines = [
         "Cellar Statistics",
         "=".repeat(40),
@@ -429,10 +554,15 @@ export function createServer(): McpServer {
                 text: `Invalid group_by '${group_by}'. Valid options: ${Object.keys(columnMap).join(", ")}`,
               },
             ],
+            structuredContent: stats,
           };
         }
         const col = columnMap[groupKey];
         const counts = aggregate(listRows, col);
+        breakdown = {
+          dimension: group_by,
+          rows: Object.entries(counts).map(([key, bottles]) => ({ key, bottles })),
+        };
 
         lines.push("");
         lines.push(`Breakdown by ${group_by}:`);
@@ -444,23 +574,30 @@ export function createServer(): McpServer {
         }
       }
 
-      return { content: [{ type: "text", text: lines.join("\n") }] };
+      return {
+        content: [{ type: "text", text: lines.join("\n") }],
+        structuredContent: breakdown ? { ...stats, breakdown } : stats,
+      };
     }
   );
 
   // --- purchase-history ---
-  server.tool(
+  server.registerTool(
     "purchase-history",
-    "Search purchase history with spending summary. " +
-      "Filter by wine name, store, or date range (YYYY-MM-DD format). " +
-      "Shows total spent, average price, per-store breakdown, and recent purchases.",
     {
-      query: z.string().optional().describe("Wine name search"),
-      store: z.string().optional().describe("Store name filter"),
-      date_from: z.string().optional().describe("Start date (YYYY-MM-DD)"),
-      date_to: z.string().optional().describe("End date (YYYY-MM-DD)"),
+      description:
+        "Search purchase history with spending summary. " +
+        "Filter by wine name, store, or date range (YYYY-MM-DD format). " +
+        "Shows total spent, average price, per-store breakdown, and recent purchases.",
+      inputSchema: {
+        query: z.string().optional().describe("Wine name search"),
+        store: z.string().optional().describe("Store name filter"),
+        date_from: z.string().optional().describe("Start date (YYYY-MM-DD)"),
+        date_to: z.string().optional().describe("End date (YYYY-MM-DD)"),
+      },
+      outputSchema: purchaseHistoryShape,
+      annotations: { title: "Purchase History", readOnlyHint: true, openWorldHint: true },
     },
-    { title: "Purchase History", readOnlyHint: true, openWorldHint: true },
     async ({ query, store, date_from, date_to }) => {
       const paths = await getFreshPaths();
       const purchaseRows = loadTable(paths.Purchase);
@@ -509,22 +646,39 @@ export function createServer(): McpServer {
         }
       }
 
-      return { content: [{ type: "text", text: lines.join("\n") }] };
+      return {
+        content: [{ type: "text", text: lines.join("\n") }],
+        structuredContent: {
+          totalSpent: summary.total_spent,
+          bottleCount: summary.bottle_count,
+          avgPrice: summary.avg_price,
+          byStore: Object.entries(summary.by_store).map(([store, info]) => ({
+            store,
+            total: info.total,
+            count: info.count,
+          })),
+          recent: summary.recent.map((r) => toPurchaseRow(r, "PurchaseDate")),
+        },
+      };
     }
   );
 
   // --- recent-deliveries ---
-  server.tool(
+  server.registerTool(
     "recent-deliveries",
-    "List wines actually delivered (received) in a date range, keyed on " +
-      "DeliveryDate. Defaults to the last 30 days. Use this for 'what just " +
-      "landed', unlike purchase-history which keys on order date.",
     {
-      date_from: z.string().optional().describe("Start delivery date (YYYY-MM-DD). Defaults to 30 days ago."),
-      date_to: z.string().optional().describe("End delivery date (YYYY-MM-DD). Defaults to today."),
-      store: z.string().optional().describe("Store name filter"),
+      description:
+        "List wines actually delivered (received) in a date range, keyed on " +
+        "DeliveryDate. Defaults to the last 30 days. Use this for 'what just " +
+        "landed', unlike purchase-history which keys on order date.",
+      inputSchema: {
+        date_from: z.string().optional().describe("Start delivery date (YYYY-MM-DD). Defaults to 30 days ago."),
+        date_to: z.string().optional().describe("End delivery date (YYYY-MM-DD). Defaults to today."),
+        store: z.string().optional().describe("Store name filter"),
+      },
+      outputSchema: recentDeliveriesShape,
+      annotations: { title: "Recent Deliveries", readOnlyHint: true, openWorldHint: true },
     },
-    { title: "Recent Deliveries", readOnlyHint: true, openWorldHint: true },
     async ({ date_from, date_to, store }) => {
       const paths = await getFreshPaths();
       const purchaseRows = loadTable(paths.Purchase);
@@ -544,9 +698,10 @@ export function createServer(): McpServer {
         "",
       ];
 
+      const mostRecent =
+        summary.deliveries.length === 0 ? mostRecentDeliveryDate(scoped) : "";
       if (summary.deliveries.length === 0) {
         lines.push("No deliveries in this window.");
-        const mostRecent = mostRecentDeliveryDate(scoped);
         if (mostRecent) {
           lines.push(`Most recent delivery was ${mostRecent} — pass date_from to widen the range.`);
         }
@@ -558,20 +713,31 @@ export function createServer(): McpServer {
         }
       }
 
-      return { content: [{ type: "text", text: lines.join("\n") }] };
+      return {
+        content: [{ type: "text", text: lines.join("\n") }],
+        structuredContent: {
+          total: summary.line_count,
+          rows: summary.deliveries.map((r) => toPurchaseRow(r, "DeliveryDate")),
+          ...(mostRecent ? { mostRecentDelivery: mostRecent } : {}),
+        },
+      };
     }
   );
 
   // --- incoming-orders ---
-  server.tool(
+  server.registerTool(
     "incoming-orders",
-    "List wines ordered but not yet received, from the Pending table. " +
-      "Sorted oldest order first. Use this for 'what's on the way', unlike " +
-      "recent-deliveries which shows what has already arrived.",
     {
-      store: z.string().optional().describe("Store name filter"),
+      description:
+        "List wines ordered but not yet received, from the Pending table. " +
+        "Sorted oldest order first. Use this for 'what's on the way', unlike " +
+        "recent-deliveries which shows what has already arrived.",
+      inputSchema: {
+        store: z.string().optional().describe("Store name filter"),
+      },
+      outputSchema: incomingOrdersShape,
+      annotations: { title: "Incoming Orders", readOnlyHint: true, openWorldHint: true },
     },
-    { title: "Incoming Orders", readOnlyHint: true, openWorldHint: true },
     async ({ store }) => {
       const paths = await getFreshPaths();
       const pendingRows = loadTable(paths.Pending);
@@ -596,35 +762,45 @@ export function createServer(): McpServer {
         }
       }
 
-      return { content: [{ type: "text", text: lines.join("\n") }] };
+      return {
+        content: [{ type: "text", text: lines.join("\n") }],
+        structuredContent: {
+          total: summary.line_count,
+          rows: summary.orders.map((r) => toPurchaseRow(r, "PurchaseDate")),
+        },
+      };
     }
   );
 
   // --- bottle-details ---
-  server.tool(
+  server.registerTool(
     "bottle-details",
-    "Look up individual bottles from the Bottles table — the per-bottle view " +
-      "spanning both in-cellar and consumed bottles, with barcode, exact " +
-      "location/bin, and size. Filter by wine name, location, bin, size, or " +
-      "barcode; set state to 'cellar' (default 'all' includes consumed). " +
-      "If the user attaches a photo of a bottle or its barcode, read the " +
-      "barcode digits from the image and pass them as the barcode filter. " +
-      "Location and Bin are account-specific labels, not physical descriptions " +
-      "— if a location/bin filter finds nothing, use cellar-stats with " +
-      "group_by=location or group_by=bin to see the actual values in use.",
     {
-      query: z.string().optional().describe("Wine name search term"),
-      location: z.string().optional().describe("Storage location (e.g. 'Wine Fridge')"),
-      bin: z.string().optional().describe("Specific bin/position (e.g. 'Drawer 2', '1-3')"),
-      size: z.string().optional().describe("Bottle format (e.g. '750ml', '1500ml')"),
-      barcode: z.string().optional().describe("Bottle barcode — e.g. read from a photo"),
-      state: z
-        .enum(["cellar", "consumed", "all"])
-        .optional()
-        .describe("Which bottles: 'cellar', 'consumed', or 'all' (default)"),
-      max_results: z.number().optional().describe("Maximum results (default 25)"),
+      description:
+        "Look up individual bottles from the Bottles table — the per-bottle view " +
+        "spanning both in-cellar and consumed bottles, with barcode, exact " +
+        "location/bin, and size. Filter by wine name, location, bin, size, or " +
+        "barcode; set state to 'cellar' (default 'all' includes consumed). " +
+        "If the user attaches a photo of a bottle or its barcode, read the " +
+        "barcode digits from the image and pass them as the barcode filter. " +
+        "Location and Bin are account-specific labels, not physical descriptions " +
+        "— if a location/bin filter finds nothing, use cellar-stats with " +
+        "group_by=location or group_by=bin to see the actual values in use.",
+      inputSchema: {
+        query: z.string().optional().describe("Wine name search term"),
+        location: z.string().optional().describe("Storage location (e.g. 'Wine Fridge')"),
+        bin: z.string().optional().describe("Specific bin/position (e.g. 'Drawer 2', '1-3')"),
+        size: z.string().optional().describe("Bottle format (e.g. '750ml', '1500ml')"),
+        barcode: z.string().optional().describe("Bottle barcode — e.g. read from a photo"),
+        state: z
+          .enum(["cellar", "consumed", "all"])
+          .optional()
+          .describe("Which bottles: 'cellar', 'consumed', or 'all' (default)"),
+        max_results: z.number().optional().describe("Maximum results (default 25)"),
+      },
+      outputSchema: bottleDetailsShape,
+      annotations: { title: "Bottle Details", readOnlyHint: true, openWorldHint: true },
     },
-    { title: "Bottle Details", readOnlyHint: true, openWorldHint: true },
     async ({ query, location, bin, size, barcode, state, max_results }) => {
       // Guard non-positive max_results (0/negative would corrupt slice(0, n)).
       const maxResults = max_results && max_results > 0 ? max_results : 25;
@@ -658,9 +834,13 @@ export function createServer(): McpServer {
                   "in use, then retry with the exact value.",
               },
             ],
+            structuredContent: { total: 0, offset: 0, count: 0, bottles: [] },
           };
         }
-        return { content: [{ type: "text", text: "No bottles found matching your criteria." }] };
+        return {
+          content: [{ type: "text", text: "No bottles found matching your criteria." }],
+          structuredContent: { total: 0, offset: 0, count: 0, bottles: [] },
+        };
       }
 
       const total = matches.length;
@@ -692,18 +872,25 @@ export function createServer(): McpServer {
         lines.push(`(Showing ${maxResults} of ${total} results. Narrow your search for more specific results.)`);
       }
 
-      return { content: [{ type: "text", text: lines.join("\n") }] };
+      return {
+        content: [{ type: "text", text: lines.join("\n") }],
+        structuredContent: { total, offset: 0, count: shown.length, bottles: shown.map(toBottleRow) },
+      };
     }
   );
 
   // --- get-wishlist ---
-  server.tool(
+  server.registerTool(
     "get-wishlist",
-    "View your CellarTracker wishlist wines. Optionally search by wine name, region, or varietal.",
     {
-      query: z.string().optional().describe("Search term"),
+      description:
+        "View your CellarTracker wishlist wines. Optionally search by wine name, region, or varietal.",
+      inputSchema: {
+        query: z.string().optional().describe("Search term"),
+      },
+      outputSchema: getWishlistShape,
+      annotations: { title: "View Wishlist", readOnlyHint: true, openWorldHint: true },
     },
-    { title: "View Wishlist", readOnlyHint: true, openWorldHint: true },
     async ({ query }) => {
       const paths = await getFreshPaths();
       const tagRows = loadTable(paths.Tag);
@@ -724,7 +911,10 @@ export function createServer(): McpServer {
 
       if (wishlist.length === 0) {
         const suffix = query ? ` matching '${query}'.` : ".";
-        return { content: [{ type: "text", text: `No wishlist wines found${suffix}` }] };
+        return {
+          content: [{ type: "text", text: `No wishlist wines found${suffix}` }],
+          structuredContent: { count: 0, wines: [] },
+        };
       }
 
       const lines = [`Wishlist — ${wishlist.length} wine(s):`, ""];
@@ -740,24 +930,31 @@ export function createServer(): McpServer {
         lines.push("");
       }
 
-      return { content: [{ type: "text", text: lines.join("\n") }] };
+      return {
+        content: [{ type: "text", text: lines.join("\n") }],
+        structuredContent: { count: wishlist.length, wines: wishlist.map(toWishlistRow) },
+      };
     }
   );
 
   // --- consumption-history ---
-  server.tool(
+  server.registerTool(
     "consumption-history",
-    "Search your consumption history — wines you've opened and drunk. " +
-      "Filter by wine name, color, or date range. " +
-      "Returns most recent consumptions first with tasting context. Limited to 25 results.",
     {
-      query: z.string().optional().describe("Wine name search term"),
-      color: z.string().optional().describe("Filter by color (Red, White, Rosé)"),
-      date_from: z.string().optional().describe("Start date (YYYY-MM-DD)"),
-      date_to: z.string().optional().describe("End date (YYYY-MM-DD)"),
-      max_results: z.number().optional().describe("Maximum results (default 25)"),
+      description:
+        "Search your consumption history — wines you've opened and drunk. " +
+        "Filter by wine name, color, or date range. " +
+        "Returns most recent consumptions first with tasting context. Limited to 25 results.",
+      inputSchema: {
+        query: z.string().optional().describe("Wine name search term"),
+        color: z.string().optional().describe("Filter by color (Red, White, Rosé)"),
+        date_from: z.string().optional().describe("Start date (YYYY-MM-DD)"),
+        date_to: z.string().optional().describe("End date (YYYY-MM-DD)"),
+        max_results: z.number().optional().describe("Maximum results (default 25)"),
+      },
+      outputSchema: consumptionHistoryShape,
+      annotations: { title: "Consumption History", readOnlyHint: true, openWorldHint: true },
     },
-    { title: "Consumption History", readOnlyHint: true, openWorldHint: true },
     async ({ query, color, date_from, date_to, max_results }) => {
       const maxResults = max_results ?? 25;
       const paths = await getFreshPaths();
@@ -783,7 +980,10 @@ export function createServer(): McpServer {
       results = results.slice(0, maxResults);
 
       if (results.length === 0) {
-        return { content: [{ type: "text", text: "No consumption records found matching your criteria." }] };
+        return {
+          content: [{ type: "text", text: "No consumption records found matching your criteria." }],
+          structuredContent: { total: 0, offset: 0, count: 0, rows: [] },
+        };
       }
 
       const lines = [`Found ${total} consumption record(s):\n`];
@@ -807,23 +1007,30 @@ export function createServer(): McpServer {
         lines.push(`(Showing ${maxResults} of ${total} results. Narrow your search for more specific results.)`);
       }
 
-      return { content: [{ type: "text", text: lines.join("\n") }] };
+      return {
+        content: [{ type: "text", text: lines.join("\n") }],
+        structuredContent: { total, offset: 0, count: results.length, rows: results.map(toConsumptionRow) },
+      };
     }
   );
 
   // --- tasting-notes ---
-  server.tool(
+  server.registerTool(
     "tasting-notes",
-    "Search your tasting notes and reviews. " +
-      "Filter by wine name, color, or minimum rating. " +
-      "Returns notes with ratings, scores, and tasting details. Limited to 25 results.",
     {
-      query: z.string().optional().describe("Wine name search term"),
-      color: z.string().optional().describe("Filter by color (Red, White, Rosé)"),
-      min_rating: z.number().optional().describe("Minimum rating filter"),
-      max_results: z.number().optional().describe("Maximum results (default 25)"),
+      description:
+        "Search your tasting notes and reviews. " +
+        "Filter by wine name, color, or minimum rating. " +
+        "Returns notes with ratings, scores, and tasting details. Limited to 25 results.",
+      inputSchema: {
+        query: z.string().optional().describe("Wine name search term"),
+        color: z.string().optional().describe("Filter by color (Red, White, Rosé)"),
+        min_rating: z.number().optional().describe("Minimum rating filter"),
+        max_results: z.number().optional().describe("Maximum results (default 25)"),
+      },
+      outputSchema: tastingNotesShape,
+      annotations: { title: "Tasting Notes", readOnlyHint: true, openWorldHint: true },
     },
-    { title: "Tasting Notes", readOnlyHint: true, openWorldHint: true },
     async ({ query, color, min_rating, max_results }) => {
       const maxResults = max_results ?? 25;
       const paths = await getFreshPaths();
@@ -849,7 +1056,10 @@ export function createServer(): McpServer {
       results = results.slice(0, maxResults);
 
       if (results.length === 0) {
-        return { content: [{ type: "text", text: "No tasting notes found matching your criteria." }] };
+        return {
+          content: [{ type: "text", text: "No tasting notes found matching your criteria." }],
+          structuredContent: { total: 0, offset: 0, count: 0, rows: [] },
+        };
       }
 
       const lines = [`Found ${total} tasting note(s):\n`];
@@ -873,17 +1083,24 @@ export function createServer(): McpServer {
         lines.push(`(Showing ${maxResults} of ${total} results. Narrow your search for more specific results.)`);
       }
 
-      return { content: [{ type: "text", text: lines.join("\n") }] };
+      return {
+        content: [{ type: "text", text: lines.join("\n") }],
+        structuredContent: { total, offset: 0, count: results.length, rows: results.map(toTastingRow) },
+      };
     }
   );
 
   // --- refresh-data ---
-  server.tool(
+  server.registerTool(
     "refresh-data",
-    "Force refresh all CellarTracker data from the server. " +
-      "Downloads fresh CSV exports for all 8 tables regardless of cache age.",
-    {},
-    { title: "Refresh Cellar Data", readOnlyHint: true, openWorldHint: true },
+    {
+      description:
+        "Force refresh all CellarTracker data from the server. " +
+        "Downloads fresh CSV exports for all 8 tables regardless of cache age.",
+      inputSchema: {},
+      outputSchema: refreshDataShape,
+      annotations: { title: "Refresh Cellar Data", readOnlyHint: true, openWorldHint: true },
+    },
     async () => {
       const { username, password } = getCredentials();
       const cacheDir = getCacheDir();
@@ -893,14 +1110,19 @@ export function createServer(): McpServer {
       const timestamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")} ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}:${String(now.getSeconds()).padStart(2, "0")}`;
 
       const lines = [`Data refreshed at ${timestamp}`, ""];
+      const tables: { name: string; rows: number; description: string }[] = [];
       for (const [tableName, tablePath] of Object.entries(paths)) {
         const rows = loadTable(tablePath);
         const desc = TABLES[tableName].desc;
         lines.push(`  ${tableName.padEnd(15)} ${String(rows.length).padStart(6)} rows  (${desc})`);
+        tables.push({ name: tableName, rows: rows.length, description: desc });
       }
       lines.push("", `Server: cellartracker-mcp v${version}`);
 
-      return { content: [{ type: "text", text: lines.join("\n") }] };
+      return {
+        content: [{ type: "text", text: lines.join("\n") }],
+        structuredContent: { refreshedAt: timestamp, serverVersion: version, tables },
+      };
     }
   );
 
@@ -913,17 +1135,22 @@ export function createServer(): McpServer {
     !looksLikeTemplate(process.env.CT_PASSWORD);
 
   if (!hasEnvCredentials) {
-    server.tool(
+    server.registerTool(
       "setup-credentials",
-      "Set up or update your CellarTracker login credentials. " +
-        "Validates credentials against CellarTracker before saving. " +
-        "Use this if you just installed the plugin or need to change your login.",
       {
-        username: z.string().describe("Your CellarTracker username"),
-        password: z.string().describe("Your CellarTracker password"),
+        description:
+          "Set up or update your CellarTracker login credentials. " +
+          "Validates credentials against CellarTracker before saving. " +
+          "Use this if you just installed the plugin or need to change your login.",
+        inputSchema: {
+          username: z.string().describe("Your CellarTracker username"),
+          password: z.string().describe("Your CellarTracker password"),
+        },
+        outputSchema: setupCredentialsShape,
+        annotations: { title: "Set Up Credentials", readOnlyHint: false, openWorldHint: true },
       },
-      { title: "Set Up Credentials", readOnlyHint: false, openWorldHint: true },
       async ({ username, password }) => {
+        const envOverrideActive = Boolean(process.env.CT_USERNAME && process.env.CT_PASSWORD);
         // Validate locally before sending anything to CellarTracker
         if (/[\r\n\0]/.test(username) || /[\r\n\0]/.test(password)) {
           return {
@@ -933,6 +1160,7 @@ export function createServer(): McpServer {
                 text: "Credentials must not contain newline or null characters.",
               },
             ],
+            structuredContent: { status: "rejected_input" as const, envOverrideActive },
           };
         }
 
@@ -944,6 +1172,7 @@ export function createServer(): McpServer {
                 text: "Credentials must be 256 characters or fewer.",
               },
             ],
+            structuredContent: { status: "rejected_input" as const, envOverrideActive },
           };
         }
 
@@ -961,6 +1190,7 @@ export function createServer(): McpServer {
                     "Please double-check your cellartracker.com login and try again.",
                 },
               ],
+              structuredContent: { status: "invalid" as const, envOverrideActive },
             };
           }
           return {
@@ -972,6 +1202,7 @@ export function createServer(): McpServer {
                   "Check your network connection and try again.",
               },
             ],
+            structuredContent: { status: "unreachable" as const, envOverrideActive },
           };
         }
 
@@ -1006,21 +1237,26 @@ export function createServer(): McpServer {
                 `You can start using tools like search-cellar, drinking-recommendations, and cellar-stats right away.${envWarning}`,
             },
           ],
+          structuredContent: { status: "saved" as const, envOverrideActive },
         };
       }
     );
 
     // --- clear-user-data ---
-    server.tool(
+    server.registerTool(
       "clear-user-data",
-      "Remove stored CellarTracker credentials and cached wine data from this machine. " +
-        "Use this to fully disconnect your account or free up disk space.",
       {
-        clear_credentials: z.boolean().optional().describe("Delete saved credentials (default true)"),
-        clear_cache: z.boolean().optional().describe("Delete cached CSV exports (default true)"),
+        description:
+          "Remove stored CellarTracker credentials and cached wine data from this machine. " +
+          "Use this to fully disconnect your account or free up disk space.",
+        inputSchema: {
+          clear_credentials: z.boolean().optional().describe("Delete saved credentials (default true)"),
+          clear_cache: z.boolean().optional().describe("Delete cached CSV exports (default true)"),
+        },
+        outputSchema: clearUserDataShape,
+        // openWorldHint: false — spec default is true, but this tool is local-only
+        annotations: { title: "Clear User Data", readOnlyHint: false, destructiveHint: true, openWorldHint: false },
       },
-      // openWorldHint: false — spec default is true, but this tool is local-only
-      { title: "Clear User Data", readOnlyHint: false, destructiveHint: true, openWorldHint: false },
       async ({ clear_credentials, clear_cache }) => {
         const result = clearUserData({
           credentials: clear_credentials ?? true,
@@ -1048,6 +1284,10 @@ export function createServer(): McpServer {
 
         return {
           content: [{ type: "text" as const, text: parts.join("\n") }],
+          structuredContent: {
+            credentials: result.credentials,
+            cacheFilesRemoved: result.cacheFilesRemoved,
+          },
         };
       }
     );
