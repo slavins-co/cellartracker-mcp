@@ -75,7 +75,7 @@ Credentials are stored only on your machine. When using the setup tool, they pas
 | `cellar-stats` | Collection overview — totals and breakdowns by any dimension |
 | `purchase-history` | Spending analysis by store, date range, or wine |
 | `recent-deliveries` | Wines actually received in a date range, by delivery date (not order date) |
-| `get-wishlist` | Your wishlist with ratings, notes, and prices |
+| `get-wishlist` | Your wishlist with notes on why each wine was added and a max price |
 | `consumption-history` | Wines you've opened — by name, color, or date range |
 | `tasting-notes` | Your tasting notes and reviews with ratings and scores |
 | `refresh-data` | Force a fresh pull (auto-refreshes every 24 hours) |
