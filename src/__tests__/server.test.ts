@@ -96,6 +96,7 @@ describe("tool annotations", () => {
       "tasting-notes",
       "recent-deliveries",
       "incoming-orders",
+      "bottle-details",
       "refresh-data",
     ];
     for (const name of dataTools) {
@@ -157,5 +158,57 @@ describe("recent-deliveries empty-window hint", () => {
       serverSrc.indexOf('"get-wishlist"')
     );
     expect(block).toMatch(/mostRecentDeliveryDate/);
+  });
+});
+
+describe("bottle-details tool", () => {
+  const serverSrc = fs.readFileSync(path.resolve(__dirname, "../server.ts"), "utf-8");
+  const block = serverSrc.slice(
+    serverSrc.indexOf('"bottle-details"'),
+    serverSrc.indexOf('"get-wishlist"')
+  );
+
+  it("reads the Bottles table, not List/Inventory", () => {
+    expect(block).toMatch(/loadTable\(paths\.Bottles\)/);
+  });
+
+  it("delegates filtering/sorting to the bottleDetails query helper", () => {
+    expect(block).toMatch(/bottleDetails\(/);
+  });
+
+  it("exposes a barcode filter param (for photo-read lookups)", () => {
+    expect(block).toMatch(/barcode:/);
+  });
+
+  it("points a location/bin miss at cellar-stats to discover real values", () => {
+    // The differentiator vs a bare 'not found': CT Location/Bin are opaque
+    // account labels, so on a location/bin miss we must name the discovery path.
+    expect(block).toMatch(/cellar-stats/);
+  });
+
+  it("gates the cellar-stats pointer on a secondary location/bin-only check", () => {
+    // The pointer must only fire when the location/bin value itself matched
+    // nothing — not on any empty result that merely happens to include a
+    // location/bin filter (else a wine/size/barcode/state miss is misdiagnosed
+    // as a bad location label). Verified by a re-query on {location, bin} alone.
+    expect(block).toMatch(/bottleDetails\(\s*bottleRows,\s*\{\s*location,\s*bin\s*\},\s*"all"\s*\)/);
+  });
+});
+
+describe("cellar-stats group_by=bin", () => {
+  const serverSrc = fs.readFileSync(path.resolve(__dirname, "../server.ts"), "utf-8");
+  const block = serverSrc.slice(
+    serverSrc.indexOf('"cellar-stats"'),
+    serverSrc.indexOf('"purchase-history"')
+  );
+
+  it("maps the bin option to the Bin column in columnMap", () => {
+    // bottle-details points a location/bin miss at cellar-stats(group_by=bin),
+    // so bin must be an accepted breakdown dimension or that pointer is a dead end.
+    expect(block).toMatch(/bin:\s*"Bin"/);
+  });
+
+  it("lists bin among the valid group_by options in the tool description", () => {
+    expect(block).toMatch(/Valid group_by options:[^"]*bin/);
   });
 });

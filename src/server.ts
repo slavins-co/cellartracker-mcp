@@ -1,5 +1,5 @@
 /**
- * CellarTracker MCP Server — 12 tools for querying wine cellar data.
+ * CellarTracker MCP Server — 13 tools for querying wine cellar data.
  */
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -13,6 +13,8 @@ import { AuthError, TABLES, ensureFresh, exportAll, fetchTable } from "./exporte
 import {
   type Row,
   aggregate,
+  bottleDetails,
+  isInCellar,
   crossReference,
   deliverySummary,
   drinkingPriority,
@@ -112,7 +114,7 @@ function maturityLabel(row: Row, currentYear: number): string {
 const require = createRequire(import.meta.url);
 const { version } = require("../package.json") as { version: string };
 
-/** Create and configure the MCP server with all 12 tools. */
+/** Create and configure the MCP server with all 13 tools. */
 export function createServer(): McpServer {
   const server = new McpServer({
     name: "cellartracker",
@@ -255,7 +257,7 @@ export function createServer(): McpServer {
   server.tool(
     "cellar-stats",
     "Get cellar statistics: total bottles, value, unique wines, and optional breakdowns. " +
-      "Valid group_by options: color, country, region, varietal, location, category.",
+      "Valid group_by options: color, country, region, varietal, location, bin, category.",
     {
       group_by: z.string().optional().describe("Breakdown dimension"),
     },
@@ -270,6 +272,7 @@ export function createServer(): McpServer {
         region: "Region",
         varietal: "Varietal",
         location: "Location",
+        bin: "Bin",
         category: "Category",
       };
 
@@ -477,6 +480,102 @@ export function createServer(): McpServer {
           lines.push(`  ${toIsoDate(r.PurchaseDate)}  ${vint} ${r.Wine ?? "Unknown"}`);
           lines.push(`    $${r.Price ?? "?"} x${r.Quantity ?? "1"}` + (r.StoreName ? ` @ ${r.StoreName}` : ""));
         }
+      }
+
+      return { content: [{ type: "text", text: lines.join("\n") }] };
+    }
+  );
+
+  // --- bottle-details ---
+  server.tool(
+    "bottle-details",
+    "Look up individual bottles from the Bottles table — the per-bottle view " +
+      "spanning both in-cellar and consumed bottles, with barcode, exact " +
+      "location/bin, and size. Filter by wine name, location, bin, size, or " +
+      "barcode; set state to 'cellar' (default 'all' includes consumed). " +
+      "If the user attaches a photo of a bottle or its barcode, read the " +
+      "barcode digits from the image and pass them as the barcode filter. " +
+      "Location and Bin are account-specific labels, not physical descriptions " +
+      "— if a location/bin filter finds nothing, use cellar-stats with " +
+      "group_by=location or group_by=bin to see the actual values in use.",
+    {
+      query: z.string().optional().describe("Wine name search term"),
+      location: z.string().optional().describe("Storage location (e.g. 'Wine Fridge')"),
+      bin: z.string().optional().describe("Specific bin/position (e.g. 'Drawer 2', '1-3')"),
+      size: z.string().optional().describe("Bottle format (e.g. '750ml', '1500ml')"),
+      barcode: z.string().optional().describe("Bottle barcode — e.g. read from a photo"),
+      state: z
+        .enum(["cellar", "consumed", "all"])
+        .optional()
+        .describe("Which bottles: 'cellar', 'consumed', or 'all' (default)"),
+      max_results: z.number().optional().describe("Maximum results (default 25)"),
+    },
+    { title: "Bottle Details", readOnlyHint: true, openWorldHint: true },
+    async ({ query, location, bin, size, barcode, state, max_results }) => {
+      // Guard non-positive max_results (0/negative would corrupt slice(0, n)).
+      const maxResults = max_results && max_results > 0 ? max_results : 25;
+      const paths = await getFreshPaths();
+      const bottleRows = loadTable(paths.Bottles);
+
+      const matches = bottleDetails(
+        bottleRows,
+        { wine: query, location, bin, size, barcode },
+        state ?? "all"
+      );
+
+      if (matches.length === 0) {
+        // A location/bin miss deserves a different message: CT Location/Bin are
+        // opaque account labels, so name the discovery path. But only when the
+        // location/bin value itself matched nothing — if it matches rows on its
+        // own and another filter (wine/size/barcode/state) caused the miss,
+        // pointing at cellar-stats would misdiagnose a valid label.
+        const locationBinMissed =
+          (location || bin) &&
+          bottleDetails(bottleRows, { location, bin }, "all").length === 0;
+        if (locationBinMissed) {
+          return {
+            content: [
+              {
+                type: "text",
+                text:
+                  "No bottles found for that location/bin. CellarTracker's Location and Bin " +
+                  "values are account-specific labels, not physical descriptions — call " +
+                  "cellar-stats with group_by=location or group_by=bin to see what's actually " +
+                  "in use, then retry with the exact value.",
+              },
+            ],
+          };
+        }
+        return { content: [{ type: "text", text: "No bottles found matching your criteria." }] };
+      }
+
+      const total = matches.length;
+      const shown = matches.slice(0, maxResults);
+
+      const stateLabel = (row: Row): string =>
+        isInCellar(row) ? "In cellar" : row.BottleState === "0" ? "Consumed" : "Unknown state";
+
+      const lines = [`Found ${total} bottle(s):\n`];
+      for (const row of shown) {
+        const vintage = vintageLabel(row);
+        const wine = row.Wine ?? "Unknown";
+        lines.push(`  ${vintage} ${wine}`);
+        lines.push(`    State: ${stateLabel(row)}`);
+        if ((row.Barcode ?? "").trim()) lines.push(`    Barcode: ${row.Barcode}`);
+        const loc = [row.Location, row.Bin].map((v) => (v ?? "").trim()).filter(Boolean).join(" — ");
+        if (loc) lines.push(`    Location: ${loc}`);
+        if ((row.BottleSize ?? "").trim()) lines.push(`    Size: ${row.BottleSize}`);
+        if (row.BottleState === "0") {
+          const consumed = toIsoDate(row.ConsumptionDate);
+          const cType = (row.ShortType ?? row.ConsumptionType ?? "").trim();
+          if (consumed || cType) {
+            lines.push(`    Consumed: ${[consumed, cType].filter(Boolean).join(" — ")}`);
+          }
+        }
+        lines.push("");
+      }
+      if (total > maxResults) {
+        lines.push(`(Showing ${maxResults} of ${total} results. Narrow your search for more specific results.)`);
       }
 
       return { content: [{ type: "text", text: lines.join("\n") }] };

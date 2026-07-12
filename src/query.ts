@@ -346,6 +346,77 @@ export interface PendingOrdersResult {
   orders: Row[];
 }
 
+/** Which bottles to include by cellar state (Bottles table's BottleState field). */
+export type BottleStateFilter = "cellar" | "consumed" | "all";
+
+/**
+ * True when a Bottles row is still in the cellar. CellarTracker's BottleState
+ * is "1" for in-cellar and "0" for consumed; centralized here so the filter,
+ * sort, and render logic can't drift on the encoding.
+ */
+export function isInCellar(row: Row): boolean {
+  return row.BottleState === "1";
+}
+
+/** Filters accepted by bottleDetails — all optional substring matches. */
+export interface BottleFilters {
+  wine?: string;
+  location?: string;
+  bin?: string;
+  size?: string;
+  barcode?: string;
+}
+
+/**
+ * Filter and order rows from the Bottles table (individual bottle records,
+ * spanning both in-cellar and consumed bottles). Substring filters reuse the
+ * shared diacritic-insensitive search(); `size` maps to the BottleSize column.
+ *
+ * `state` selects by CellarTracker's BottleState field ("1" = in cellar,
+ * "0" = consumed): "cellar"/"consumed" match those exact values, "all"
+ * (default) applies no state filter. A row whose BottleState is neither "0"
+ * nor "1" (blank/garbled) is excluded from the "cellar" and "consumed" views
+ * but still surfaces under "all", so bad data is never silently dropped from
+ * an unfiltered query.
+ *
+ * Sort: in-cellar bottles first (most actionable), then by Location, then by
+ * Bin — so results cluster the way you'd physically walk the cellar. Capping
+ * is the caller's job (matches search()/pendingOrders precedent).
+ */
+export function bottleDetails(
+  rows: Row[],
+  filters: BottleFilters,
+  state: BottleStateFilter = "all"
+): Row[] {
+  const searchFilters: Record<string, string | undefined> = {
+    Wine: filters.wine,
+    Location: filters.location,
+    Bin: filters.bin,
+    BottleSize: filters.size,
+    Barcode: filters.barcode,
+  };
+
+  let results = search(rows, searchFilters);
+
+  if (state === "cellar") {
+    results = results.filter(isInCellar);
+  } else if (state === "consumed") {
+    results = results.filter((r) => r.BottleState === "0");
+  }
+
+  // Sort cellar-first (in-cellar before consumed/other), then Location, then
+  // Bin. Bin uses a numeric-aware compare so row-slot codes sort naturally
+  // ("1-2" before "1-10"), matching the physical-walk order the docs promise.
+  return [...results].sort((a, b) => {
+    const aCellar = isInCellar(a) ? 0 : 1;
+    const bCellar = isInCellar(b) ? 0 : 1;
+    if (aCellar !== bCellar) return aCellar - bCellar;
+    const locCmp = (a.Location ?? "").localeCompare(b.Location ?? "");
+    if (locCmp !== 0) return locCmp;
+    return (a.Bin ?? "").localeCompare(b.Bin ?? "", undefined, { numeric: true });
+  });
+}
+
 /**
  * Summarize in-transit orders from the Pending table — wines ordered but
  * not yet received. Pending is expected to hold only undelivered rows, but

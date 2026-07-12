@@ -35,6 +35,7 @@
     { "name": "get-wishlist", "description": "View your CellarTracker wishlist wines." },
     { "name": "consumption-history", "description": "Search your consumption history — wines you've opened and drunk." },
     { "name": "tasting-notes", "description": "Search your tasting notes and reviews." },
+    { "name": "bottle-details", "description": "Look up individual bottles by wine name, location, bin, size, or barcode — spanning cellar and consumed." },
     { "name": "refresh-data", "description": "Force refresh all CellarTracker data from the server." }
   ],
   "user_config": {
