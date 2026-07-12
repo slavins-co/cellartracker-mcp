@@ -25,3 +25,4 @@
 - [ ] Follow-up (from #43): `getCacheAge` could filter to known `TABLES` names so a future orphaned `_latest.csv` (table removal/rename) can't pin the cache stale — no current code path creates orphans
 - [x] #45 — Auth detection via exact not-logged-in marker; other HTML → ServiceError (PR #73)
 - [x] #47 — Retry network errors + 5xx with jittered backoff in fetchTable; tiered timeouts bound worst case (PR #73)
+- [x] #46 — Small robustness batch: scoped cache deletion, score rounding, date-parse warning, vintageLabel() extraction (PR #74)
