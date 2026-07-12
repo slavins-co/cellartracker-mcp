@@ -33,3 +33,6 @@ CHANGELOG.md
 node_modules/typescript/
 node_modules/@types/
 node_modules/@anthropic-ai/mcpb/
+
+# Registry metadata — not a runtime file
+server.json
