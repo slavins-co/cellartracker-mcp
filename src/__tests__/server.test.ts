@@ -185,6 +185,14 @@ describe("bottle-details tool", () => {
     // account labels, so on a location/bin miss we must name the discovery path.
     expect(block).toMatch(/cellar-stats/);
   });
+
+  it("gates the cellar-stats pointer on a secondary location/bin-only check", () => {
+    // The pointer must only fire when the location/bin value itself matched
+    // nothing — not on any empty result that merely happens to include a
+    // location/bin filter (else a wine/size/barcode/state miss is misdiagnosed
+    // as a bad location label). Verified by a re-query on {location, bin} alone.
+    expect(block).toMatch(/bottleDetails\(\s*bottleRows,\s*\{\s*location,\s*bin\s*\},\s*"all"\s*\)/);
+  });
 });
 
 describe("cellar-stats group_by=bin", () => {

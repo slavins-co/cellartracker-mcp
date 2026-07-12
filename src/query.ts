@@ -349,6 +349,15 @@ export interface PendingOrdersResult {
 /** Which bottles to include by cellar state (Bottles table's BottleState field). */
 export type BottleStateFilter = "cellar" | "consumed" | "all";
 
+/**
+ * True when a Bottles row is still in the cellar. CellarTracker's BottleState
+ * is "1" for in-cellar and "0" for consumed; centralized here so the filter,
+ * sort, and render logic can't drift on the encoding.
+ */
+export function isInCellar(row: Row): boolean {
+  return row.BottleState === "1";
+}
+
 /** Filters accepted by bottleDetails — all optional substring matches. */
 export interface BottleFilters {
   wine?: string;
@@ -390,19 +399,21 @@ export function bottleDetails(
   let results = search(rows, searchFilters);
 
   if (state === "cellar") {
-    results = results.filter((r) => r.BottleState === "1");
+    results = results.filter(isInCellar);
   } else if (state === "consumed") {
     results = results.filter((r) => r.BottleState === "0");
   }
 
-  // Sort cellar-first (BottleState "1" before "0"/other), then Location, then Bin.
+  // Sort cellar-first (in-cellar before consumed/other), then Location, then
+  // Bin. Bin uses a numeric-aware compare so row-slot codes sort naturally
+  // ("1-2" before "1-10"), matching the physical-walk order the docs promise.
   return [...results].sort((a, b) => {
-    const aCellar = a.BottleState === "1" ? 0 : 1;
-    const bCellar = b.BottleState === "1" ? 0 : 1;
+    const aCellar = isInCellar(a) ? 0 : 1;
+    const bCellar = isInCellar(b) ? 0 : 1;
     if (aCellar !== bCellar) return aCellar - bCellar;
     const locCmp = (a.Location ?? "").localeCompare(b.Location ?? "");
     if (locCmp !== 0) return locCmp;
-    return (a.Bin ?? "").localeCompare(b.Bin ?? "");
+    return (a.Bin ?? "").localeCompare(b.Bin ?? "", undefined, { numeric: true });
   });
 }
 

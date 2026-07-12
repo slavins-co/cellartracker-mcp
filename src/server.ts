@@ -14,6 +14,7 @@ import {
   type Row,
   aggregate,
   bottleDetails,
+  isInCellar,
   crossReference,
   deliverySummary,
   drinkingPriority,
@@ -511,7 +512,8 @@ export function createServer(): McpServer {
     },
     { title: "Bottle Details", readOnlyHint: true, openWorldHint: true },
     async ({ query, location, bin, size, barcode, state, max_results }) => {
-      const maxResults = max_results ?? 25;
+      // Guard non-positive max_results (0/negative would corrupt slice(0, n)).
+      const maxResults = max_results && max_results > 0 ? max_results : 25;
       const paths = await getFreshPaths();
       const bottleRows = loadTable(paths.Bottles);
 
@@ -522,10 +524,15 @@ export function createServer(): McpServer {
       );
 
       if (matches.length === 0) {
-        // A location/bin miss is different from a generic empty result: CT
-        // Location/Bin are opaque account labels, so name the discovery path
-        // rather than leaving the caller to guess a value that will never match.
-        if (location || bin) {
+        // A location/bin miss deserves a different message: CT Location/Bin are
+        // opaque account labels, so name the discovery path. But only when the
+        // location/bin value itself matched nothing — if it matches rows on its
+        // own and another filter (wine/size/barcode/state) caused the miss,
+        // pointing at cellar-stats would misdiagnose a valid label.
+        const locationBinMissed =
+          (location || bin) &&
+          bottleDetails(bottleRows, { location, bin }, "all").length === 0;
+        if (locationBinMissed) {
           return {
             content: [
               {
@@ -546,7 +553,7 @@ export function createServer(): McpServer {
       const shown = matches.slice(0, maxResults);
 
       const stateLabel = (row: Row): string =>
-        row.BottleState === "1" ? "In cellar" : row.BottleState === "0" ? "Consumed" : "Unknown state";
+        isInCellar(row) ? "In cellar" : row.BottleState === "0" ? "Consumed" : "Unknown state";
 
       const lines = [`Found ${total} bottle(s):\n`];
       for (const row of shown) {

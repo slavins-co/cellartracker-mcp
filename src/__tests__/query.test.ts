@@ -792,6 +792,16 @@ describe("bottleDetails", () => {
     ]);
   });
 
+  it("sorts row-slot bins numerically, not lexicographically (1-2 before 1-10)", () => {
+    const rows = [
+      makeBottle({ Wine: "Slot 10", Location: "Wine Fridge", Bin: "1-10" }),
+      makeBottle({ Wine: "Slot 2", Location: "Wine Fridge", Bin: "1-2" }),
+      makeBottle({ Wine: "Slot 3", Location: "Wine Fridge", Bin: "1-3" }),
+    ];
+    const result = bottleDetails(rows, {});
+    expect(result.map((r) => r.Bin)).toEqual(["1-2", "1-3", "1-10"]);
+  });
+
   it("excludes a garbled BottleState from cellar/consumed views but keeps it under 'all'", () => {
     const rows = [
       makeBottle({ Wine: "Good Cellar", BottleState: "1" }),
