@@ -20,6 +20,7 @@ import {
   search,
   spendSummary,
   toIsoDate,
+  vintageLabel,
 } from "./query.js";
 
 /** Load credentials and ensure cache is fresh. Returns table paths. */
@@ -48,7 +49,7 @@ export function formatScores(row: Row, fields: string[] = ALL_SCORE_FIELDS): str
 /** Format a single wine row into readable text. */
 function fmtWine(row: Row, includeScores = false): string {
   const wine = row.Wine ?? row.WineName ?? "Unknown";
-  const vintage = row.Vintage ?? "NV";
+  const vintage = vintageLabel(row);
   const location = row.Location ?? row.Bin ?? "";
   const qty = row.Quantity ?? row.QtyOH ?? "";
   const price = row.Price ?? row.Valuation ?? "";
@@ -218,7 +219,7 @@ export function createServer(): McpServer {
       for (let i = 0; i < prioritized.length; i++) {
         const row = prioritized[i];
         const wine = row.Wine ?? row.WineName ?? "Unknown";
-        const vintage = row.Vintage ?? "NV";
+        const vintage = vintageLabel(row);
         const loc = row.Location ?? row.Bin ?? "";
         const status = maturityLabel(row, currentYear);
 
@@ -417,7 +418,7 @@ export function createServer(): McpServer {
         lines.push("No deliveries in this window.");
       } else {
         for (const r of summary.deliveries) {
-          const vint = r.Vintage && r.Vintage !== "1001" ? r.Vintage : "NV";
+          const vint = vintageLabel(r);
           lines.push(`  ${toIsoDate(r.DeliveryDate)}  ${vint} ${r.Wine ?? "Unknown"}`);
           lines.push(`    $${r.Price ?? "?"} x${r.Quantity ?? "1"}` + (r.StoreName ? ` @ ${r.StoreName}` : ""));
         }
@@ -461,7 +462,7 @@ export function createServer(): McpServer {
       const lines = [`Wishlist — ${wishlist.length} wine(s):`, ""];
       for (const row of wishlist) {
         const wine = row.Wine ?? row.WineName ?? "Unknown";
-        const vintage = row.Vintage ?? "NV";
+        const vintage = vintageLabel(row);
         const notes = (row.WinesNotes ?? row.Notes ?? "").trim();
         const maxPrice = (row.MaxPrice ?? row.Price ?? "").trim();
 
@@ -518,7 +519,7 @@ export function createServer(): McpServer {
 
       const lines = [`Found ${total} consumption record(s):\n`];
       for (const row of results) {
-        const vintage = row.Vintage ?? "NV";
+        const vintage = vintageLabel(row);
         const wine = row.Wine ?? "Unknown";
         const date = row.Consumed ?? "?";
         const shortType = (row.ShortType ?? "").trim();
@@ -583,7 +584,7 @@ export function createServer(): McpServer {
 
       const lines = [`Found ${total} tasting note(s):\n`];
       for (const row of results) {
-        const vintage = row.Vintage ?? "NV";
+        const vintage = vintageLabel(row);
         const wine = row.Wine ?? "Unknown";
         const date = row.TastingDate ?? "?";
         const rating = (row.Rating ?? "").trim();

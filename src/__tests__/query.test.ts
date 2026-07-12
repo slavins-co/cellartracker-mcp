@@ -6,6 +6,7 @@ import {
   drinkingPriority,
   spendSummary,
   deliverySummary,
+  vintageLabel,
   type Row,
 } from "../query.js";
 
@@ -189,6 +190,27 @@ describe("toIsoDate", () => {
       toIsoDate("2026-03-14");
       expect(spy).not.toHaveBeenCalled();
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// vintageLabel
+// ---------------------------------------------------------------------------
+describe("vintageLabel", () => {
+  it("renders CellarTracker's 1001 NV sentinel as NV", () => {
+    expect(vintageLabel({ Vintage: "1001" })).toBe("NV");
+  });
+
+  it("renders an empty vintage as NV", () => {
+    expect(vintageLabel({ Vintage: "" })).toBe("NV");
+  });
+
+  it("renders a missing Vintage field as NV", () => {
+    expect(vintageLabel({})).toBe("NV");
+  });
+
+  it("passes through a real vintage year unchanged", () => {
+    expect(vintageLabel({ Vintage: "2015" })).toBe("2015");
   });
 });
 

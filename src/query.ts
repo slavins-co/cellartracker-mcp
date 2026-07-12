@@ -125,6 +125,15 @@ export function toIsoDate(value: string | undefined): string {
   return "";
 }
 
+/**
+ * Render a row's vintage for display. CellarTracker uses "1001" as its NV
+ * (non-vintage) sentinel — rendering it raw would show "1001" instead of "NV".
+ */
+export function vintageLabel(row: Row): string {
+  const v = (row.Vintage ?? "").trim();
+  return !v || v === "1001" ? "NV" : v;
+}
+
 function safeFloat(value: string | undefined, fallback = -1): number {
   if (!value?.trim()) return fallback;
   const n = parseFloat(value.trim());
