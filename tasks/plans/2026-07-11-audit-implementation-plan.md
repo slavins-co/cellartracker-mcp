@@ -55,7 +55,7 @@ All merged via PRs #72-#76 in the planned groupings. #43 and #47 both touch expo
 | [#50](https://github.com/slavins-co/cellartracker-mcp/issues/50) | Food-pairing tool (FoodTags table, new fetch) | M | - |
 | [#51](https://github.com/slavins-co/cellartracker-mcp/issues/51) | Pro-reviews tool (ProReview table, new fetch) | M | Low value unless user enters pro reviews |
 | [#52](https://github.com/slavins-co/cellartracker-mcp/issues/52) | CellarTracker deep links (iWine) in output | S | Verify URL pattern first |
-| [#53](https://github.com/slavins-co/cellartracker-mcp/issues/53) | Docs sync (skill drift, README wishlist claim, + recent-deliveries) | S | Any time; cheap |
+| ✅ [#53](https://github.com/slavins-co/cellartracker-mcp/issues/53) | Docs sync (skill drift, README wishlist claim, + recent-deliveries) | S | DONE - shipped in PR #77, rode the 0.4.0 release |
 | [#70](https://github.com/slavins-co/cellartracker-mcp/issues/70) | "Incoming orders" tool over Pending table (what's coming, vs recent-deliveries' what landed) | S | Pairs with #71 |
 | [#71](https://github.com/slavins-co/cellartracker-mcp/issues/71) | recent-deliveries: hint most-recent delivery when default window is empty | XS | Pairs with #70 |
 
@@ -109,12 +109,25 @@ Context: the server is not in the official MCP registry (registry.modelcontextpr
 | - | ✅ **Release 0.4.0** | | | Shipped 2026-07-12, first attempt clean (npm with provenance + .mcpb attached; the #69 dry-run guard did its job). Local-install verification passed (user confirmed 0.4.0 after plugin reinstall; note: marketplace remove/re-add was the only UI path that worked for updating - plugin-update UX rough edge). |
 | - | ✅ **Release 0.4.1** | | | Shipped 2026-07-12. Metadata-only: `mcpName` in package.json (required - registry ownership validation reads the *published* npm package), `server.json`, verify-versions → scripts/verify-versions.mjs (six locations + registry identity), README pin example. |
 | - | ✅ **Registry submission** | | | **DONE 2026-07-12.** Published `io.github.slavins-co/cellartracker-mcp` v0.4.1 to registry.modelcontextprotocol.io (verified via public API). Required a metadata-only v0.4.1 npm publish carrying `mcpName` (registry ownership validation reads the published package). `server.json` committed; `verify-versions` now scripts/verify-versions.mjs covering six version locations + registry identity. Glama's "cannot be installed" flag traced to their automated probe ("Quality: not tested"), nothing actionable our side - expect aggregators to re-index from the official registry. **This closes the last 2026-07-11 audit-arc item.** |
-| 9 | Docs sync | #53 | Sonnet | Do FIRST in Phase 3 - #49/#50/#51 touch the same skill docs; fix drift before adding to them. Scope includes recent-deliveries (see issue comment). |
-| 10 | Orders & deliveries | #70 + #71 | Sonnet | Same domain (Pending/deliveries), same server.ts neighborhood, both small. #70 reuses recent-deliveries' conventions. |
-| 11 | Bottles tool | #49 | Opus | Plan-review first (Bottles vs Inventory, tool UX). PR #39 dependency: cleared (merged 2026-07-11). |
-| 12 | New tables | #50 + #51 | Opus | Plan-review #50 (schema discovery on first authenticated pull); #51 rides the established pattern. |
-| 13 | Deep links | #52 | Sonnet | Verify wine-page URL pattern before implementing. |
-| 14 | Modernization | #54 | - | Backlog. Needs a splitting/planning pass before any implementation (minus the annotations pulled forward at registry time). |
+Everything above this line is complete. (#53 shipped inside PR #77 rather than as its own PR - the old "docs sync first" row is subsumed.)
+
+### Outstanding work (→ 0.5.0, unscheduled)
+
+PR groupings reconfirmed 2026-07-12, post-#77. One sequencing note dissolved: "do #53 first because the tool PRs touch the same skill docs" no longer applies - drift is fixed, so each tool PR simply updates the skill docs as part of its own diff.
+
+| Order | PR | Issues | Model | Plan-review? | Notes |
+|---|---|---|---|---|---|
+| 1 | Orders & deliveries | #70 + #71 | Sonnet | No | **Combine confirmed:** same domain (Pending/deliveries), same server.ts neighborhood, both small; #70 reuses recent-deliveries' conventions. Natural 0.5.0 opener. |
+| 2 | Bottles tool | #49 | Opus | Yes | **Solo confirmed:** open design (Bottles vs Inventory, tool UX) shouldn't share a diff with anything. |
+| 3 | New tables | #50 + #51 | Opus | #50 only | **Combine confirmed:** identical pattern (new table fetch + tool + schema discovery on first authenticated pull); #51 rides #50's established pattern. |
+| 4 | Deep links | #52 | Sonnet | No | **Solo confirmed:** carries its own URL-verification step; grouping buys nothing. |
+| - | **Release 0.5.0** | | | | None of rows 1-4 are coupled - a partial 0.5.0 is fine whenever appetite runs out. |
+| 5 | Modernization | #54 remainder | - | Yes - splitting pass | structuredContent/outputSchema, pagination, optional MCP resources. Evaluate the zod 4 major (#63) together with the structured-output slice - both touch every tool schema. |
+
+Non-PR maintainer items still open:
+- Held dependabot majors: action-gh-release 3 (#59 - most worthwhile, clears the Node 20 deprecation warning in the publish workflow), zod 4 (#63 - pair with #54), TypeScript 7 (#65). Each needs a live client→server smoke test; CI-green is not sufficient for majors.
+- Deprecate PyPI `cellartracker-mcp` 0.1.0 with a pointer to npm.
+- One-time manual read of CellarTracker ToS re: automated access.
 
 **Held dependabot majors (deliberate, 2026-07-11):** zod 4 (#63), TypeScript 7 (#65), action-gh-release 3 (#59). Decide after 0.4.0 + registry, not during Phase 2 - don't mix major dep bumps with behavioral robustness changes. Evaluate zod 4 together with #54's structured-output design (both touch every tool schema). Note: the 0.4.0 publish run warned that the pinned action-gh-release targets deprecated Node 20 - #59 resolves that, making it the least optional of the three. Lesson from the recap applies: CI-green is not sufficient for majors; each needs a live client-to-server smoke test (`tools/list` + one real tool call) before merging.
 
