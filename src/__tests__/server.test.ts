@@ -111,13 +111,18 @@ describe("tool annotations", () => {
     expect(tool).toBeDefined();
     expect(tool!.annotations?.readOnlyHint).toBe(false);
     expect(tool!.annotations?.openWorldHint).toBe(true);
+    expect(tool!.annotations?.title).toBeTruthy();
   });
 
-  it("marks clear-user-data as destructive and non-read-only", () => {
+  it("marks clear-user-data as destructive, non-read-only, and local-only", () => {
     const tool = tools.find((t) => t.name === "clear-user-data");
     expect(tool).toBeDefined();
     expect(tool!.annotations?.readOnlyHint).toBe(false);
     expect(tool!.annotations?.destructiveHint).toBe(true);
+    // Explicit false matters: the spec default for openWorldHint is true,
+    // but this tool never touches the network
+    expect(tool!.annotations?.openWorldHint).toBe(false);
+    expect(tool!.annotations?.title).toBeTruthy();
   });
 });
 

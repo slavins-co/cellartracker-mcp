@@ -665,7 +665,7 @@ export function createServer(): McpServer {
         username: z.string().describe("Your CellarTracker username"),
         password: z.string().describe("Your CellarTracker password"),
       },
-      { readOnlyHint: false, openWorldHint: true },
+      { title: "Set Up Credentials", readOnlyHint: false, openWorldHint: true },
       async ({ username, password }) => {
         // Validate locally before sending anything to CellarTracker
         if (/[\r\n\0]/.test(username) || /[\r\n\0]/.test(password)) {
@@ -762,7 +762,8 @@ export function createServer(): McpServer {
         clear_credentials: z.boolean().optional().describe("Delete saved credentials (default true)"),
         clear_cache: z.boolean().optional().describe("Delete cached CSV exports (default true)"),
       },
-      { readOnlyHint: false, destructiveHint: true },
+      // openWorldHint: false — spec default is true, but this tool is local-only
+      { title: "Clear User Data", readOnlyHint: false, destructiveHint: true, openWorldHint: false },
       async ({ clear_credentials, clear_cache }) => {
         const result = clearUserData({
           credentials: clear_credentials ?? true,
