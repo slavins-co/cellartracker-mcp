@@ -34,3 +34,5 @@
 - [x] #54 (partial) — Tool annotations: readOnlyHint/openWorldHint/destructiveHint + titles on all 11 tools via SDK 1.29's tool() overload (PR #77)
 - [ ] #54 (remaining) — Structured output (outputSchema/structuredContent, consider registerTool), pagination on search-cellar/consumption-history/tasting-notes, optional CSV-as-resources
 - [ ] Follow-up (from #54/PR #77): `refresh-data`'s `readOnlyHint: true` is debatable — it writes fresh CSVs to the local cache and hits the network, not strictly read-only. Kept per the issue's explicit spec; no MCP client currently gates on the hint. Revisit if client trust-signal behavior starts depending on it.
+- [x] #70 — Add `incoming-orders` tool over the `Pending` table (PR #78)
+- [x] #71 — `recent-deliveries` hints most-recent delivery date on an empty window (PR #78)

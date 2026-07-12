@@ -95,6 +95,7 @@ describe("tool annotations", () => {
       "consumption-history",
       "tasting-notes",
       "recent-deliveries",
+      "incoming-orders",
       "refresh-data",
     ];
     for (const name of dataTools) {
@@ -145,5 +146,16 @@ describe("diacritic-insensitive filters in server.ts", () => {
     );
     expect(block).toMatch(/foldDiacritics/);
     expect(block).not.toMatch(/\.toLowerCase\(\)/);
+  });
+});
+
+describe("recent-deliveries empty-window hint", () => {
+  it("surfaces mostRecentDeliveryDate when the window has no deliveries", () => {
+    const serverSrc = fs.readFileSync(path.resolve(__dirname, "../server.ts"), "utf-8");
+    const block = serverSrc.slice(
+      serverSrc.indexOf('"recent-deliveries"'),
+      serverSrc.indexOf('"get-wishlist"')
+    );
+    expect(block).toMatch(/mostRecentDeliveryDate/);
   });
 });

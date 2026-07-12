@@ -31,6 +31,7 @@
     { "name": "cellar-stats", "description": "Get cellar statistics: total bottles, value, unique wines, and optional breakdowns." },
     { "name": "purchase-history", "description": "Search purchase history with spending summary." },
     { "name": "recent-deliveries", "description": "List wines actually delivered (received) in a date range, keyed on delivery date." },
+    { "name": "incoming-orders", "description": "List wines ordered but not yet received, from the Pending table." },
     { "name": "get-wishlist", "description": "View your CellarTracker wishlist wines." },
     { "name": "consumption-history", "description": "Search your consumption history — wines you've opened and drunk." },
     { "name": "tasting-notes", "description": "Search your tasting notes and reviews." },

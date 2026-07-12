@@ -324,3 +324,49 @@ export function deliverySummary(
     deliveries,
   };
 }
+
+/**
+ * Most recent Delivered=true DeliveryDate across all purchase rows, ignoring
+ * any date window. Used to hint the user when a windowed recent-deliveries
+ * query comes back empty. Returns "" when there are no delivered rows.
+ */
+export function mostRecentDeliveryDate(purchaseRows: Row[]): string {
+  let latest = "";
+  for (const row of purchaseRows) {
+    if (String(row.Delivered).toLowerCase() !== "true") continue;
+    const d = toIsoDate(row.DeliveryDate);
+    if (d && d > latest) latest = d;
+  }
+  return latest;
+}
+
+export interface PendingOrdersResult {
+  line_count: number;
+  bottle_count: number;
+  orders: Row[];
+}
+
+/**
+ * Summarize in-transit orders from the Pending table — wines ordered but
+ * not yet received. Pending is expected to hold only undelivered rows, but
+ * defensively excludes any row already marked Delivered=true (mirrors
+ * deliverySummary's case-insensitive flag check). Sorted oldest order
+ * first, so the longest-waiting orders surface first.
+ */
+export function pendingOrders(pendingRows: Row[]): PendingOrdersResult {
+  // toIsoDate() returns "" for missing/unparseable dates, sentineled here to
+  // sort last — an ascending sort would otherwise put unknown-date rows
+  // first, the opposite of every other date sort in this file.
+  const sortDate = (r: Row) => toIsoDate(r.PurchaseDate) || "9999-99-99";
+  const orders = pendingRows
+    .filter((r) => String(r.Delivered).toLowerCase() !== "true")
+    .sort((a, b) => sortDate(a).localeCompare(sortDate(b)));
+
+  const bottleCount = orders.reduce((sum, r) => sum + safeInt(r.Quantity, 0), 0);
+
+  return {
+    line_count: orders.length,
+    bottle_count: bottleCount,
+    orders,
+  };
+}

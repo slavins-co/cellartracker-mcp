@@ -15,6 +15,7 @@ This skill enables Claude to parse, query, and cross-reference CellarTracker dat
 - `cellar-stats` — overview of cellar composition (counts, categories, regions)
 - `purchase-history` — full buy history with pricing and retailer info
 - `recent-deliveries` — wines actually received in a date range, by delivery date
+- `incoming-orders` — wines ordered but not yet received, from the Pending table
 - `get-wishlist` — current wishlist with notes on why each wine was added
 - `consumption-history` — wines you've opened, with tasting context
 - `tasting-notes` — your tasting notes and reviews with ratings and scores
@@ -38,7 +39,7 @@ Eight tables are exported from CellarTracker. Not all will always be available �
 | **Availability** | Maturity & pro scores | Drinking windows (multiple sources), all professional scores, maturity curves |
 | **Tag** | Wishlists & custom lists | ListName, WinesNotes (why it's on the list) |
 | **Bottles** | Individual bottle records | BottleState, per-bottle notes, combines cellar + consumed |
-| **Pending** | In-transit orders | Same as Purchase but undelivered |
+| **Pending** | In-transit orders | Same as Purchase but undelivered; use `incoming-orders` |
 
 ### Table Priority for Common Tasks
 
@@ -47,6 +48,7 @@ Eight tables are exported from CellarTracker. Not all will always be available �
 - **"What have I been drinking?"** — Consumed (patterns, frequency, notes)
 - **"Cellar overview / audit"** — List (full inventory) + Availability (what's past peak?)
 - **"How much have I spent?"** — Purchase (complete spend history)
+- **"What's on the way / still coming?"** — Pending (in-transit orders not yet received)
 
 ## Parsing Instructions
 

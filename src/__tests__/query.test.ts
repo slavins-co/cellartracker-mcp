@@ -8,6 +8,8 @@ import {
   drinkingPriority,
   spendSummary,
   deliverySummary,
+  mostRecentDeliveryDate,
+  pendingOrders,
   vintageLabel,
   type Row,
 } from "../query.js";
@@ -563,5 +565,119 @@ describe("deliverySummary", () => {
     expect(result.line_count).toBe(0);
     expect(result.bottle_count).toBe(0);
     expect(result.deliveries).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// mostRecentDeliveryDate
+// ---------------------------------------------------------------------------
+describe("mostRecentDeliveryDate", () => {
+  const makeDeliveryRow = (
+    wine: string,
+    deliveryDate: string,
+    delivered: string
+  ): Row => ({
+    Wine: wine,
+    DeliveryDate: deliveryDate,
+    Delivered: delivered,
+  });
+
+  it("returns the latest delivered date, ignoring any window", () => {
+    const rows = [
+      makeDeliveryRow("Older", "4/26/2026", "true"),
+      makeDeliveryRow("Newest", "6/2/2026", "true"),
+      makeDeliveryRow("Middle", "5/1/2026", "true"),
+    ];
+    expect(mostRecentDeliveryDate(rows)).toBe("2026-06-02");
+  });
+
+  it("is case-insensitive on the Delivered flag (real exports use 'True')", () => {
+    const rows = [makeDeliveryRow("Cap T", "6/2/2026", "True")];
+    expect(mostRecentDeliveryDate(rows)).toBe("2026-06-02");
+  });
+
+  it("ignores undelivered (pending) rows", () => {
+    const rows = [makeDeliveryRow("Pending", "6/2/2026", "false")];
+    expect(mostRecentDeliveryDate(rows)).toBe("");
+  });
+
+  it("returns empty string when there are no delivered rows", () => {
+    expect(mostRecentDeliveryDate([])).toBe("");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// pendingOrders
+// ---------------------------------------------------------------------------
+describe("pendingOrders", () => {
+  const makePendingRow = (
+    wine: string,
+    purchaseDate: string,
+    delivered: string,
+    qty: string,
+    store = "Test Store"
+  ): Row => ({
+    Wine: wine,
+    PurchaseDate: purchaseDate,
+    Delivered: delivered,
+    Quantity: qty,
+    Price: "100",
+    StoreName: store,
+  });
+
+  it("counts pending lines and bottles", () => {
+    const rows = [
+      makePendingRow("Wine A", "6/2/2026", "false", "6"),
+      makePendingRow("Wine B", "6/3/2026", "false", "12"),
+    ];
+    const result = pendingOrders(rows);
+    expect(result.line_count).toBe(2);
+    expect(result.bottle_count).toBe(18);
+  });
+
+  it("excludes rows already marked Delivered=true", () => {
+    const rows = [
+      makePendingRow("Still Pending", "6/2/2026", "false", "6"),
+      makePendingRow("Already Delivered", "6/1/2026", "true", "6"),
+    ];
+    const result = pendingOrders(rows);
+    expect(result.line_count).toBe(1);
+    expect(result.orders[0].Wine).toBe("Still Pending");
+  });
+
+  it("is case-insensitive on the Delivered flag", () => {
+    const rows = [makePendingRow("Cap T", "6/2/2026", "True", "6")];
+    const result = pendingOrders(rows);
+    expect(result.line_count).toBe(0);
+  });
+
+  it("sorts orders oldest-first", () => {
+    const rows = [
+      makePendingRow("Newer", "6/20/2026", "false", "1"),
+      makePendingRow("Older", "6/2/2026", "false", "1"),
+    ];
+    const result = pendingOrders(rows);
+    expect(result.orders[0].Wine).toBe("Older");
+    expect(result.orders[1].Wine).toBe("Newer");
+  });
+
+  it("sorts a row with a missing PurchaseDate to the end, not the start", () => {
+    // toIsoDate() maps missing/unparseable dates to "" — an ascending sort
+    // on the raw string would put "" (this row) first, the opposite of
+    // every other date sort in query.ts, which treats "" as sorting last.
+    const rows = [
+      makePendingRow("Unknown Date", "", "false", "1"),
+      makePendingRow("Older", "6/2/2026", "false", "1"),
+      makePendingRow("Newer", "6/20/2026", "false", "1"),
+    ];
+    const result = pendingOrders(rows);
+    expect(result.orders.map((r) => r.Wine)).toEqual(["Older", "Newer", "Unknown Date"]);
+  });
+
+  it("returns zeros for empty input", () => {
+    const result = pendingOrders([]);
+    expect(result.line_count).toBe(0);
+    expect(result.bottle_count).toBe(0);
+    expect(result.orders).toEqual([]);
   });
 });
