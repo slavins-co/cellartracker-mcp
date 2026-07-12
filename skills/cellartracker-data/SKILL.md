@@ -19,6 +19,7 @@ This skill enables Claude to parse, query, and cross-reference CellarTracker dat
 - `get-wishlist` — current wishlist with notes on why each wine was added
 - `consumption-history` — wines you've opened, with tasting context
 - `tasting-notes` — your tasting notes and reviews with ratings and scores
+- `bottle-details` — individual bottles (cellar + consumed) by wine name, location, bin, size, or barcode
 - `refresh-data` — force a fresh pull from CellarTracker
 
 **When MCP is not available (Claude.ai Projects)**, look for uploaded CSV files:
@@ -38,7 +39,7 @@ Eight tables are exported from CellarTracker. Not all will always be available �
 | **Consumed** | Drinking log | Consumed date, ConsumptionNote, context (who, food, occasion) |
 | **Availability** | Maturity & pro scores | Drinking windows (multiple sources), all professional scores, maturity curves |
 | **Tag** | Wishlists & custom lists | ListName, WinesNotes (why it's on the list) |
-| **Bottles** | Individual bottle records | BottleState, per-bottle notes, combines cellar + consumed |
+| **Bottles** | Individual bottle records | BottleState, Barcode, per-bottle notes, combines cellar + consumed; use `bottle-details` |
 | **Pending** | In-transit orders | Same as Purchase but undelivered; use `incoming-orders` |
 
 ### Table Priority for Common Tasks
@@ -49,6 +50,15 @@ Eight tables are exported from CellarTracker. Not all will always be available �
 - **"Cellar overview / audit"** — List (full inventory) + Availability (what's past peak?)
 - **"How much have I spent?"** — Purchase (complete spend history)
 - **"What's on the way / still coming?"** — Pending (in-transit orders not yet received)
+- **"Where's this bottle? / What's in my wine fridge?"** — Bottles via `bottle-details` (per-bottle location, bin, barcode, state)
+
+### Finding a Specific Bottle (`bottle-details`)
+
+The `bottle-details` tool queries the **Bottles** table — individual bottle records spanning both in-cellar and consumed bottles. Use it for barcode lookups, exact bin location, and per-bottle state, which the wine-level `List`/`Availability` tables can't reach.
+
+- **Barcode from a photo:** if the user attaches a photo of a bottle or a barcode, read the barcode digits directly from the image (your own vision — no OCR tooling) and pass them as the `barcode` filter.
+- **Natural-language location/bin ("what's in my wine fridge", "the bottom shelf of my cabinet"):** CellarTracker `Location` and `Bin` values are account-specific labels (e.g. `Wine Fridge`, `Bar Cabinet`, `Drawer 2`, or row-slot codes like `1-3`), **not** physical descriptions. Two-step it: call `cellar-stats` with `group_by=location` or `group_by=bin` first to learn the account's actual vocabulary, then call `bottle-details` with the exact value. `bottle-details` returns this same pointer if a location/bin filter finds nothing.
+- **Bin position is not derivable from the label.** A code like `1-3` means row 1, slot 3, but which row is physically "top" vs "bottom" depends on the user's actual setup — if position is ambiguous after discovery, ask rather than guessing.
 
 ## Parsing Instructions
 

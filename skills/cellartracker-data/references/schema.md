@@ -326,6 +326,19 @@ Granular per-bottle view combining cellar + consumed. More rows than List becaus
 | ConsumptionRevenue / ConsumptionRevenueCurrency | float/str | Revenue if sold |
 | BeginConsume / EndConsume | int | Drinking window years |
 
+### Bottles vs. Inventory (why this server fetches Bottles)
+
+CellarTracker's export API also offers an **Inventory** table ("Individual Bottles"), which this server does **not** fetch. During the #49 implementation, both were pulled once and compared on a live account:
+
+| | **Bottles** (fetched) | **Inventory** (not fetched) |
+|---|---|---|
+| Rows | cellar **+** consumed bottles | cellar only |
+| Barcode, Location, Bin | Yes | Yes |
+| `BottleState` / consumption fields | **Yes** | No |
+| Valuation, Price, pro scores | No | Yes |
+
+`Bottles` is chosen because it carries `BottleState` (the cellar-vs-consumed distinction the `bottle-details` tool needs, which `Inventory` lacks entirely) and is already part of the standard 8-table refresh — no extra fetch or credentialed request. Per-bottle valuation/pro-scores (Inventory's only advantage) are recoverable when needed by joining `Bottles` to the already-fetched `List`/`Availability` on `iWine`, rather than adding a 9th fetch.
+
 ---
 
 ## Table: Pending (In-Transit Orders)
