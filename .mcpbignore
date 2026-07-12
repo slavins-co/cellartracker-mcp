@@ -8,6 +8,7 @@ tsconfig.json
 /.github/
 /.claude/
 /.claude-plugin/
+/scripts/
 .mcp.json
 .env
 .env.example
@@ -26,7 +27,7 @@ CHANGELOG.md
 # Build artifacts
 *.mcpb
 
-# Dev dependencies — not needed at runtime.
+# Dev dependencies - not needed at runtime.
 # Run `npm ci --omit=dev` before packing to exclude these automatically.
 # These patterns catch them if a full install was used instead.
 node_modules/typescript/

@@ -20,7 +20,7 @@ jobs:
 
   # Dry-runs the release packaging path (prod-only reinstall + mcpb pack)
   # on every push/PR, without publishing. Catches packaging breaks before
-  # release day — see scripts/pack-check.sh, also used by publish.yml.
+  # release day - see scripts/pack-check.sh, also used by publish.yml.
   packaging-dry-run:
     runs-on: ubuntu-latest
     steps:
