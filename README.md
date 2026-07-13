@@ -83,6 +83,12 @@ Credentials are stored only on your machine. When using the setup tool, they pas
 | `refresh-data` | Force a fresh pull (auto-refreshes every 24 hours) |
 | `clear-user-data` | Remove stored credentials and cached data from this machine (Claude Code plugin only) |
 
+Every tool returns structured JSON alongside its readable text, so clients can compute over results directly. List tools support `offset` pagination past the 25-per-page cap.
+
+### Resources
+
+For bulk analysis without per-tool result caps, the server also exposes the cached table exports as MCP resources: `cellartracker://tables/<Table>` (raw CSV, one per table — List, Notes, Purchase, Consumed, Availability, Tag, Bottles, Pending) and `cellartracker://meta/cache` (JSON freshness timestamps per table plus the server version, readable without credentials).
+
 ## Included skills
 
 > **Note:** Skills are available in Cowork and Code modes via the Claude Code plugin. Chat mode (Desktop Extension) provides tools only.
