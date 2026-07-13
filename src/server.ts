@@ -7,6 +7,7 @@ import { z } from "zod";
 
 import fs from "node:fs";
 import { createRequire } from "node:module";
+import path from "node:path";
 
 import { clearUserData, getCacheDir, getConfigDir, getCredentials, looksLikeTemplate } from "./config.js";
 import { AuthError, TABLES, ensureFresh, exportAll, fetchTable } from "./exporter.js";
@@ -1379,13 +1380,17 @@ export function createServer(): McpServer {
       description: "Per-table freshness timestamps and server version for the cached CellarTracker export.",
       mimeType: "application/json",
     },
+    // A local stat of the cache dir, not getFreshPaths() — this lets a caller check
+    // freshness before deciding whether reading a table resource is worth the cost of
+    // the network refresh that read would trigger, rather than paying that cost just
+    // to find out. No credentials required either, since nothing here touches the network.
     async (uri) => {
-      const paths = await getFreshPaths();
+      const cacheDir = getCacheDir();
       const tables: Record<string, { lastModified: string | null }> = {};
       for (const tableName of Object.keys(TABLES)) {
-        const latestPath = paths[tableName];
+        const latestPath = path.join(cacheDir, `${tableName}_latest.csv`);
         tables[tableName] = {
-          lastModified: latestPath ? fs.statSync(latestPath).mtime.toISOString() : null,
+          lastModified: fs.existsSync(latestPath) ? fs.statSync(latestPath).mtime.toISOString() : null,
         };
       }
       const body = JSON.stringify({ serverVersion: version, tables }, null, 2);
