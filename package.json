@@ -1,7 +1,7 @@
 {
   "name": "cellartracker-mcp",
   "mcpName": "io.github.slavins-co/cellartracker-mcp",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "description": "MCP server for CellarTracker wine cellar data — inventory, drinking recommendations, purchase history, and wishlist",
   "type": "module",
   "bin": {

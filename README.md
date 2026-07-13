@@ -1,5 +1,7 @@
 # CellarTracker MCP
 
+> **Disclaimer:** This is a community-maintained project with no affiliation to, or endorsement by, CellarTracker! LLC. It uses CellarTracker's self-serve [data export](https://support.cellartracker.com/article/29-exporting-data) on your own account's behalf.
+
 Connect Claude to your [CellarTracker](https://www.cellartracker.com/) wine cellar. Query your inventory, get drinking recommendations, and analyze purchases and drinking history, all through natural conversation. No need to refresh your inventory, or share your tasting notes. Claude pulls them directly from your CellarTracker account.
 
 ## Install
@@ -127,7 +129,7 @@ The Claude Code plugin stores credentials as plaintext in `~/.config/cellartrack
 
 - **Use a unique password** for CellarTracker. Do not reuse a password from other services.
 - **Prefer environment variables** over the `setup-credentials` tool if you want to avoid persisting credentials to disk.
-- **Pin to a specific version** in your MCP config (e.g., `cellartracker-mcp@0.4.1`) rather than relying on `@latest`.
+- **Pin to a specific version** in your MCP config (e.g., `cellartracker-mcp@0.5.0`) rather than relying on `@latest`.
 
 ## Development
 
