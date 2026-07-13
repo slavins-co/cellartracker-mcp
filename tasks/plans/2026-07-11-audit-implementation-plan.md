@@ -6,7 +6,9 @@ Status 2026-07-11 EOD: Phase 1 complete - #40/#41/#42 closed, PR #39 merged (HOL
 
 Status 2026-07-12: **AUDIT ARC COMPLETE.** Phase 2 shipped via PRs #72-#76; PR #77 added docs sync (#53) + tool annotations (#54 partial); **v0.4.0 released** (all robustness findings); **v0.4.1 released** (registry metadata: `mcpName`, `server.json`, six-location verify-versions); **published to the official MCP Registry** as `io.github.slavins-co/cellartracker-mcp` (verified via public API). Local install verified at 0.4.x (staleness class confirmed dead). Suite at 127 tests.
 
-Remaining tail (all optional, unscheduled): Phase 3 features → 0.5.0, #54 backlog remainder, held dependabot majors, PyPI 0.1.0 deprecation, one-time ToS read.
+Status 2026-07-12 (later): **v0.5.0 SHIPPED and registry updated.** Phase 3 (#49, #52, #70, #71 - PRs #78-#80) plus the full #54 modernization arc (slices A/B/C - PRs #87-#89, per tasks/plans/2026-07-12-54-modernization-design.md) released as v0.5.0; registry listing republished at 0.5.0. All held dependabot majors resolved (zod 4 + TS 7 + csv-parse 7 in, each smoke-tested); action-gh-release 3 validated on the release run. README gained the community-maintained disclaimer. Suite: 210 tests.
+
+Remaining tail (all optional, unscheduled): #50/#51 (FoodTags, ProReview - deferred by choice), PyPI 0.1.0 deprecation, one-time ToS read, and follow-ups in todo.md (toTastingRow "0.0" sentinel, listPayload helper).
 
 ## Decisions
 
