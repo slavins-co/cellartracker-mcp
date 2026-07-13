@@ -7,6 +7,7 @@ import { z } from "zod";
 
 import fs from "node:fs";
 import { createRequire } from "node:module";
+import path from "node:path";
 
 import { clearUserData, getCacheDir, getConfigDir, getCredentials, looksLikeTemplate } from "./config.js";
 import { AuthError, TABLES, ensureFresh, exportAll, fetchTable } from "./exporter.js";
@@ -1350,6 +1351,54 @@ export function createServer(): McpServer {
       }
     );
   }
+
+  // --- MCP resources: cached table CSVs + cache freshness metadata ---
+  for (const [tableName, meta] of Object.entries(TABLES)) {
+    server.registerResource(
+      `table-${tableName}`,
+      `cellartracker://tables/${tableName}`,
+      {
+        title: `${tableName} table (CSV)`,
+        description: `${meta.desc} — raw cached CSV export, refreshed via the same cache as the query tools.`,
+        mimeType: "text/csv",
+      },
+      async (uri) => {
+        const paths = await getFreshPaths();
+        const csvText = fs.readFileSync(paths[tableName], "utf-8");
+        return {
+          contents: [{ uri: uri.href, mimeType: "text/csv", text: csvText }],
+        };
+      }
+    );
+  }
+
+  server.registerResource(
+    "cache-meta",
+    "cellartracker://meta/cache",
+    {
+      title: "Cache metadata",
+      description: "Per-table freshness timestamps and server version for the cached CellarTracker export.",
+      mimeType: "application/json",
+    },
+    // A local stat of the cache dir, not getFreshPaths() — this lets a caller check
+    // freshness before deciding whether reading a table resource is worth the cost of
+    // the network refresh that read would trigger, rather than paying that cost just
+    // to find out. No credentials required either, since nothing here touches the network.
+    async (uri) => {
+      const cacheDir = getCacheDir();
+      const tables: Record<string, { lastModified: string | null }> = {};
+      for (const tableName of Object.keys(TABLES)) {
+        const latestPath = path.join(cacheDir, `${tableName}_latest.csv`);
+        tables[tableName] = {
+          lastModified: fs.existsSync(latestPath) ? fs.statSync(latestPath).mtime.toISOString() : null,
+        };
+      }
+      const body = JSON.stringify({ serverVersion: version, tables }, null, 2);
+      return {
+        contents: [{ uri: uri.href, mimeType: "application/json", text: body }],
+      };
+    }
+  );
 
   return server;
 }

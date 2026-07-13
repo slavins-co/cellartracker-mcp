@@ -442,6 +442,14 @@ function textOf(result: Awaited<ReturnType<Client["callTool"]>>): string {
   return content.filter((c) => c.type === "text").map((c) => c.text ?? "").join("\n");
 }
 
+/** Read a readResource result's single content entry. */
+function resourceContentOf(
+  result: Awaited<ReturnType<Client["readResource"]>>
+): { uri: string; mimeType?: string; text?: string } {
+  const [content] = result.contents as { uri: string; mimeType?: string; text?: string }[];
+  return content;
+}
+
 describe("structured output — data tools (fixture cache)", () => {
   const savedEnv: Record<string, string | undefined> = {};
   let tmpDir: string;
@@ -719,6 +727,106 @@ describe("structured output — data tools (fixture cache)", () => {
     expect(sc.total).toBe(2);
     expect(sc.count).toBe(2);
     expect(textOf(r)).not.toContain("Try a smaller offset");
+  });
+
+  it("lists a cellartracker://tables/<Table> resource per table plus the cache-meta resource", async () => {
+    const { resources } = await client.listResources();
+    const uris = resources.map((r) => r.uri).sort();
+    const expectedTableUris = Object.keys(FIXTURES).map((t) => `cellartracker://tables/${t}`).sort();
+    for (const uri of expectedTableUris) expect(uris).toContain(uri);
+    expect(uris).toContain("cellartracker://meta/cache");
+
+    const listResource = resources.find((r) => r.uri === "cellartracker://tables/List");
+    expect(listResource?.mimeType).toBe("text/csv");
+  });
+
+  it("reads cellartracker://tables/List as the raw cached CSV, byte-identical to the fixture", async () => {
+    const content = resourceContentOf(await client.readResource({ uri: "cellartracker://tables/List" }));
+    expect(content.mimeType).toBe("text/csv");
+    expect(content.text).toBe(FIXTURES.List);
+  });
+
+  it("reads cellartracker://tables/Bottles as the raw cached CSV, byte-identical to the fixture", async () => {
+    const content = resourceContentOf(await client.readResource({ uri: "cellartracker://tables/Bottles" }));
+    expect(content.text).toBe(FIXTURES.Bottles);
+  });
+
+  it("reads cellartracker://meta/cache as JSON with per-table freshness + server version, without touching the network", async () => {
+    const content = resourceContentOf(await client.readResource({ uri: "cellartracker://meta/cache" }));
+    expect(content.mimeType).toBe("application/json");
+    const body = JSON.parse(content.text ?? "{}") as {
+      serverVersion: string;
+      tables: Record<string, { lastModified: string | null }>;
+    };
+    expect(typeof body.serverVersion).toBe("string");
+    expect(Object.keys(body.tables).sort()).toEqual(Object.keys(FIXTURES).sort());
+    expect(new Date(body.tables.List.lastModified ?? "").toString()).not.toBe("Invalid Date");
+  });
+});
+
+describe("MCP resources — error paths", () => {
+  const savedEnv: Record<string, string | undefined> = {};
+  let tmpDir: string;
+
+  beforeAll(() => {
+    for (const k of ["CT_CACHE_DIR", "CT_USERNAME", "CT_PASSWORD"]) savedEnv[k] = process.env[k];
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "ct-resources-err-"));
+  });
+
+  afterAll(() => {
+    for (const [k, v] of Object.entries(savedEnv)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("cellartracker://meta/cache reads with no credentials and an empty cache (all-null freshness), proving it never touches the network", async () => {
+    delete process.env.CT_USERNAME;
+    delete process.env.CT_PASSWORD;
+    process.env.CT_CACHE_DIR = tmpDir;
+
+    const server = createServer();
+    const client = new Client({ name: "test-client", version: "0.0.0" });
+    const [ct, st] = InMemoryTransport.createLinkedPair();
+    await Promise.all([client.connect(ct), server.connect(st)]);
+    try {
+      const content = resourceContentOf(await client.readResource({ uri: "cellartracker://meta/cache" }));
+      const body = JSON.parse(content.text ?? "{}") as { tables: Record<string, { lastModified: string | null }> };
+      expect(Object.values(body.tables).every((t) => t.lastModified === null)).toBe(true);
+    } finally {
+      await Promise.all([client.close(), server.close()]);
+    }
+  });
+
+  it("cellartracker://tables/List rejects with a clear, actionable protocol error, not an opaque crash, on an auth failure", async () => {
+    // Same sanctioned stubbed-fetch pattern as "refresh-data (stubbed fetch)" below —
+    // never touch the real network or a real ~/.config/cellartracker-mcp/.env.
+    process.env.CT_USERNAME = "test-user";
+    process.env.CT_PASSWORD = "test-pass";
+    process.env.CT_CACHE_DIR = tmpDir; // empty — forces ensureFresh to actually fetch
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        new Response("<html>You are currently not logged into CellarTracker.</html>", {
+          status: 200,
+          headers: { "content-type": "text/html; charset=utf-8" },
+        })
+      )
+    );
+
+    const server = createServer();
+    const client = new Client({ name: "test-client", version: "0.0.0" });
+    const [ct, st] = InMemoryTransport.createLinkedPair();
+    await Promise.all([client.connect(ct), server.connect(st)]);
+    try {
+      await expect(client.readResource({ uri: "cellartracker://tables/List" })).rejects.toThrow(
+        /authentication failed/i
+      );
+    } finally {
+      await Promise.all([client.close(), server.close()]);
+      vi.unstubAllGlobals();
+    }
   });
 });
 
