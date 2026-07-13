@@ -22,6 +22,10 @@ This skill enables Claude to parse, query, and cross-reference CellarTracker dat
 - `bottle-details` — individual bottles (cellar + consumed) by wine name, location, bin, size, or barcode
 - `refresh-data` — force a fresh pull from CellarTracker
 
+**For bulk or SQL-style analysis (Claude Code)**, MCP resources expose the same cached CSVs directly — no per-tool result caps, and no need to hunt for the cache path:
+- `cellartracker://tables/<Table>` — the full raw CSV for one of the 8 tables (e.g. `cellartracker://tables/List`), `text/csv`, refreshed via the same cache the tools use
+- `cellartracker://meta/cache` — JSON with per-table freshness timestamps and server version, useful to check before treating a resource read as current
+
 **When MCP is not available (Claude.ai Projects)**, look for uploaded CSV files:
 - Individual `*_latest.csv` files (most common)
 - Timestamped files like `List_20260313_015000.csv`

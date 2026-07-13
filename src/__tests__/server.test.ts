@@ -720,6 +720,43 @@ describe("structured output — data tools (fixture cache)", () => {
     expect(sc.count).toBe(2);
     expect(textOf(r)).not.toContain("Try a smaller offset");
   });
+
+  it("lists a cellartracker://tables/<Table> resource per table plus the cache-meta resource", async () => {
+    const { resources } = await client.listResources();
+    const uris = resources.map((r) => r.uri).sort();
+    const expectedTableUris = Object.keys(FIXTURES).map((t) => `cellartracker://tables/${t}`).sort();
+    for (const uri of expectedTableUris) expect(uris).toContain(uri);
+    expect(uris).toContain("cellartracker://meta/cache");
+
+    const listResource = resources.find((r) => r.uri === "cellartracker://tables/List");
+    expect(listResource?.mimeType).toBe("text/csv");
+  });
+
+  it("reads cellartracker://tables/List as the raw cached CSV, byte-identical to the fixture", async () => {
+    const { contents } = await client.readResource({ uri: "cellartracker://tables/List" });
+    const [content] = contents as { uri: string; mimeType?: string; text?: string }[];
+    expect(content.mimeType).toBe("text/csv");
+    expect(content.text).toBe(FIXTURES.List);
+  });
+
+  it("reads cellartracker://tables/Bottles as the raw cached CSV, byte-identical to the fixture", async () => {
+    const { contents } = await client.readResource({ uri: "cellartracker://tables/Bottles" });
+    const [content] = contents as { uri: string; mimeType?: string; text?: string }[];
+    expect(content.text).toBe(FIXTURES.Bottles);
+  });
+
+  it("reads cellartracker://meta/cache as JSON with per-table freshness + server version", async () => {
+    const { contents } = await client.readResource({ uri: "cellartracker://meta/cache" });
+    const [content] = contents as { uri: string; mimeType?: string; text?: string }[];
+    expect(content.mimeType).toBe("application/json");
+    const body = JSON.parse(content.text ?? "{}") as {
+      serverVersion: string;
+      tables: Record<string, { lastModified: string | null }>;
+    };
+    expect(typeof body.serverVersion).toBe("string");
+    expect(Object.keys(body.tables).sort()).toEqual(Object.keys(FIXTURES).sort());
+    expect(new Date(body.tables.List.lastModified ?? "").toString()).not.toBe("Invalid Date");
+  });
 });
 
 describe("structured output — refresh-data (stubbed fetch)", () => {

@@ -1351,5 +1351,49 @@ export function createServer(): McpServer {
     );
   }
 
+  // --- MCP resources: cached table CSVs + cache freshness metadata ---
+  for (const [tableName, meta] of Object.entries(TABLES)) {
+    server.registerResource(
+      `table-${tableName}`,
+      `cellartracker://tables/${tableName}`,
+      {
+        title: `${tableName} table (CSV)`,
+        description: `${meta.desc} — raw cached CSV export, refreshed via the same cache as the query tools.`,
+        mimeType: "text/csv",
+      },
+      async (uri) => {
+        const paths = await getFreshPaths();
+        const csvText = fs.readFileSync(paths[tableName], "utf-8");
+        return {
+          contents: [{ uri: uri.href, mimeType: "text/csv", text: csvText }],
+        };
+      }
+    );
+  }
+
+  server.registerResource(
+    "cache-meta",
+    "cellartracker://meta/cache",
+    {
+      title: "Cache metadata",
+      description: "Per-table freshness timestamps and server version for the cached CellarTracker export.",
+      mimeType: "application/json",
+    },
+    async (uri) => {
+      const paths = await getFreshPaths();
+      const tables: Record<string, { lastModified: string | null }> = {};
+      for (const tableName of Object.keys(TABLES)) {
+        const latestPath = paths[tableName];
+        tables[tableName] = {
+          lastModified: latestPath ? fs.statSync(latestPath).mtime.toISOString() : null,
+        };
+      }
+      const body = JSON.stringify({ serverVersion: version, tables }, null, 2);
+      return {
+        contents: [{ uri: uri.href, mimeType: "application/json", text: body }],
+      };
+    }
+  );
+
   return server;
 }
