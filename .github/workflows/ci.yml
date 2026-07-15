@@ -5,6 +5,11 @@ on:
     branches: [main]
   pull_request:
 
+# Least-privilege default for GITHUB_TOKEN: both jobs only read the repo
+# (checkout/install/build/test), so no write scopes are needed.
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
