@@ -204,29 +204,36 @@ describe("drinking-recommendations deep link", () => {
   });
 });
 
-describe("tool annotations", () => {
+type ListedTools = Awaited<ReturnType<Client["listTools"]>>["tools"];
+
+/** List all tools over an in-memory client. Env credentials are cleared for the call so
+ * setup-credentials/clear-user-data are deterministically registered, regardless of the
+ * ambient shell environment running the suite. */
+async function listToolsWithoutEnvCredentials(): Promise<ListedTools> {
   const originalEnv = { CT_USERNAME: process.env.CT_USERNAME, CT_PASSWORD: process.env.CT_PASSWORD };
-  let tools: Awaited<ReturnType<Client["listTools"]>>["tools"];
-
-  beforeAll(async () => {
-    // Clear env credentials so setup-credentials/clear-user-data are deterministically
-    // registered, regardless of the ambient shell environment running the suite.
-    delete process.env.CT_USERNAME;
-    delete process.env.CT_PASSWORD;
-
+  delete process.env.CT_USERNAME;
+  delete process.env.CT_PASSWORD;
+  try {
     const server = createServer();
     const client = new Client({ name: "test-client", version: "0.0.0" });
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
     await Promise.all([client.connect(clientTransport), server.connect(serverTransport)]);
-    ({ tools } = await client.listTools());
+    const { tools } = await client.listTools();
     await Promise.all([client.close(), server.close()]);
-  });
-
-  afterAll(() => {
+    return tools;
+  } finally {
     if (originalEnv.CT_USERNAME !== undefined) process.env.CT_USERNAME = originalEnv.CT_USERNAME;
     else delete process.env.CT_USERNAME;
     if (originalEnv.CT_PASSWORD !== undefined) process.env.CT_PASSWORD = originalEnv.CT_PASSWORD;
     else delete process.env.CT_PASSWORD;
+  }
+}
+
+describe("tool annotations", () => {
+  let tools: ListedTools;
+
+  beforeAll(async () => {
+    tools = await listToolsWithoutEnvCredentials();
   });
 
   it("marks all data-query tools read-only and open-world with a title", () => {
@@ -274,27 +281,11 @@ describe("tool annotations", () => {
 
 describe("tool schema dialect (JSON Schema 2020-12)", () => {
   const DIALECT = "https://json-schema.org/draft/2020-12/schema";
-  const originalEnv = { CT_USERNAME: process.env.CT_USERNAME, CT_PASSWORD: process.env.CT_PASSWORD };
-  let tools: Awaited<ReturnType<Client["listTools"]>>["tools"];
+  let tools: ListedTools;
 
   beforeAll(async () => {
-    // Clear env credentials so all 13 tools (incl. setup-credentials/clear-user-data) are registered
-    delete process.env.CT_USERNAME;
-    delete process.env.CT_PASSWORD;
-
-    const server = createServer();
-    const client = new Client({ name: "test-client", version: "0.0.0" });
-    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-    await Promise.all([client.connect(clientTransport), server.connect(serverTransport)]);
-    ({ tools } = await client.listTools());
-    await Promise.all([client.close(), server.close()]);
-  });
-
-  afterAll(() => {
-    if (originalEnv.CT_USERNAME !== undefined) process.env.CT_USERNAME = originalEnv.CT_USERNAME;
-    else delete process.env.CT_USERNAME;
-    if (originalEnv.CT_PASSWORD !== undefined) process.env.CT_PASSWORD = originalEnv.CT_PASSWORD;
-    else delete process.env.CT_PASSWORD;
+    // All 13 tools, incl. setup-credentials/clear-user-data
+    tools = await listToolsWithoutEnvCredentials();
   });
 
   it("declares 2020-12 on every input and output schema, and each compiles with Ajv 2020", () => {

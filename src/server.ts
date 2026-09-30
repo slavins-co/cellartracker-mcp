@@ -361,11 +361,15 @@ export function createServer(): McpServer {
     const listTools = handler as unknown as ListToolsHandler;
     return setRequestHandler(ListToolsRequestSchema, async (request, extra) => {
       const result = (await listTools(request, extra)) as ListToolsResult;
-      for (const tool of result.tools) {
-        tool.inputSchema.$schema = JSON_SCHEMA_2020_12;
-        if (tool.outputSchema) tool.outputSchema.$schema = JSON_SCHEMA_2020_12;
-      }
-      return result;
+      // Copy rather than mutate: the SDK reuses a module-level constant for tools without an input schema.
+      return {
+        ...result,
+        tools: result.tools.map((tool) => ({
+          ...tool,
+          inputSchema: { ...tool.inputSchema, $schema: JSON_SCHEMA_2020_12 },
+          ...(tool.outputSchema && { outputSchema: { ...tool.outputSchema, $schema: JSON_SCHEMA_2020_12 } }),
+        })),
+      };
     });
   }) as typeof server.server.setRequestHandler;
 
