@@ -3,6 +3,7 @@
  */
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { ListToolsRequestSchema, type ListToolsResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 
 import fs from "node:fs";
@@ -339,12 +340,34 @@ function maturityLabel(row: Row, currentYear: number): string {
 const require = createRequire(import.meta.url);
 const { version } = require("../package.json") as { version: string };
 
+const JSON_SCHEMA_2020_12 = "https://json-schema.org/draft/2020-12/schema";
+
 /** Create and configure the MCP server with all 13 tools. */
 export function createServer(): McpServer {
   const server = new McpServer({
     name: "cellartracker",
     version,
   });
+
+  // SDK 1.x (through 1.31.0) hardcodes draft-07 `$schema` on every tool's input/output
+  // schema, but the MCP spec defaults to JSON Schema 2020-12 and strict clients reject
+  // draft-07 (#114). Relabel tools/list output as 2020-12; the emitted schemas are
+  // otherwise identical. Must wrap before the first registerTool, which installs the
+  // handler. Remove with the SDK v2 migration (v2 emits 2020-12 natively).
+  const setRequestHandler = server.server.setRequestHandler.bind(server.server);
+  type ListToolsHandler = Parameters<typeof setRequestHandler<typeof ListToolsRequestSchema>>[1];
+  server.server.setRequestHandler = ((schema, handler) => {
+    if ((schema as unknown) !== ListToolsRequestSchema) return setRequestHandler(schema, handler);
+    const listTools = handler as unknown as ListToolsHandler;
+    return setRequestHandler(ListToolsRequestSchema, async (request, extra) => {
+      const result = (await listTools(request, extra)) as ListToolsResult;
+      for (const tool of result.tools) {
+        tool.inputSchema.$schema = JSON_SCHEMA_2020_12;
+        if (tool.outputSchema) tool.outputSchema.$schema = JSON_SCHEMA_2020_12;
+      }
+      return result;
+    });
+  }) as typeof server.server.setRequestHandler;
 
   // --- search-cellar ---
   server.registerTool(

@@ -5,6 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { Ajv2020 } from "ajv/dist/2020.js";
 import { createServer, formatScores, wineUrl, scoresRecord, toWineRow, clampOffset, clampLimit, paginationFooter } from "../server.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -268,6 +269,44 @@ describe("tool annotations", () => {
     // but this tool never touches the network
     expect(tool!.annotations?.openWorldHint).toBe(false);
     expect(tool!.annotations?.title).toBeTruthy();
+  });
+});
+
+describe("tool schema dialect (JSON Schema 2020-12)", () => {
+  const DIALECT = "https://json-schema.org/draft/2020-12/schema";
+  const originalEnv = { CT_USERNAME: process.env.CT_USERNAME, CT_PASSWORD: process.env.CT_PASSWORD };
+  let tools: Awaited<ReturnType<Client["listTools"]>>["tools"];
+
+  beforeAll(async () => {
+    // Clear env credentials so all 13 tools (incl. setup-credentials/clear-user-data) are registered
+    delete process.env.CT_USERNAME;
+    delete process.env.CT_PASSWORD;
+
+    const server = createServer();
+    const client = new Client({ name: "test-client", version: "0.0.0" });
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    await Promise.all([client.connect(clientTransport), server.connect(serverTransport)]);
+    ({ tools } = await client.listTools());
+    await Promise.all([client.close(), server.close()]);
+  });
+
+  afterAll(() => {
+    if (originalEnv.CT_USERNAME !== undefined) process.env.CT_USERNAME = originalEnv.CT_USERNAME;
+    else delete process.env.CT_USERNAME;
+    if (originalEnv.CT_PASSWORD !== undefined) process.env.CT_PASSWORD = originalEnv.CT_PASSWORD;
+    else delete process.env.CT_PASSWORD;
+  });
+
+  it("declares 2020-12 on every input and output schema, and each compiles with Ajv 2020", () => {
+    expect(tools).toHaveLength(13);
+    const ajv = new Ajv2020({ strict: false });
+    for (const tool of tools) {
+      expect(tool.inputSchema.$schema, `${tool.name} inputSchema`).toBe(DIALECT);
+      expect(tool.outputSchema, `${tool.name} should have an outputSchema`).toBeDefined();
+      expect(tool.outputSchema!.$schema, `${tool.name} outputSchema`).toBe(DIALECT);
+      expect(() => ajv.compile(tool.inputSchema), `${tool.name} inputSchema compiles`).not.toThrow();
+      expect(() => ajv.compile(tool.outputSchema!), `${tool.name} outputSchema compiles`).not.toThrow();
+    }
   });
 });
 
