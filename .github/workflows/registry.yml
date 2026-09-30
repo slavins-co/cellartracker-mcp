@@ -1,13 +1,13 @@
 name: Publish to MCP Registry
 
-# Republishes server.json to the official MCP Registry after each release.
-# Runs once the Publish workflow has succeeded (the registry verifies the
-# package exists on npm), or manually for an existing tag. Authenticates with
-# GitHub Actions OIDC, so no interactive device login or stored token is needed.
+# Republishes server.json to the official MCP Registry on each release, or
+# manually for an existing tag. Runs alongside the Publish workflow and waits
+# for npm to serve the version, since the registry verifies the npm package.
+# Authenticates with GitHub Actions OIDC, so no interactive device login or
+# stored token is needed. Both triggers need write access to the repo.
 on:
-  workflow_run:
-    workflows: ["Publish"]
-    types: [completed]
+  release:
+    types: [published]
   workflow_dispatch:
     inputs:
       tag:
@@ -19,11 +19,6 @@ permissions:
 
 jobs:
   publish-registry:
-    # Only after a successful release-triggered Publish run, or a manual run.
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.workflow_run.conclusion == 'success' &&
-       github.event.workflow_run.event == 'release')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -34,7 +29,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.event.workflow_run.head_sha }}
+          # Release events check out the release tag by default.
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
 
       - name: Install mcp-publisher (pinned, checksum-verified)
         run: |
@@ -44,17 +40,18 @@ jobs:
           tar xzf mcp-publisher.tar.gz mcp-publisher
 
       - name: Wait for the npm version to be available
-        # npm can take a few minutes to serve a just-published version, and the
-        # registry rejects a server.json whose package version it can't find.
+        # Publish runs in parallel, and npm can take a few minutes to serve a
+        # just-published version. The registry rejects a server.json whose
+        # package version it can't find. If npm publish fails, this times out.
         run: |
           VERSION=$(jq -r .version server.json)
-          for i in $(seq 1 40); do
+          for i in $(seq 1 60); do
             if [ "$(npm view "cellartracker-mcp@${VERSION}" version 2>/dev/null)" = "${VERSION}" ]; then
               echo "npm serves ${VERSION}"; exit 0
             fi
             sleep 15
           done
-          echo "cellartracker-mcp@${VERSION} not available on npm after 10 minutes" >&2
+          echo "cellartracker-mcp@${VERSION} not available on npm after 15 minutes" >&2
           exit 1
 
       - name: Log in to the MCP Registry
