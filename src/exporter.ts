@@ -66,20 +66,35 @@ class RetryableError extends Error {
 }
 
 /**
- * Per-attempt fetch timeouts (ms): a generous first attempt for the happy path,
- * then shorter retries. The sum plus backoff (~4.6s max) stays well under typical
- * MCP client tool timeouts (~60s), so a wedged CellarTracker surfaces our own
- * "service may be down" error rather than a client-side abort mid-retry (issue #47).
+ * One overall time budget per table fetch, shared by all attempts (issue #112).
+ * Each attempt's timeout is whatever remains, so the first attempt can use the
+ * whole budget: large accounts need 20s+ for a single export (e.g. Consumed).
+ * 50s stays under the ~60s hard tool-call limit of clients where users can't
+ * raise it, so our own error arrives before the client gives up (issue #47).
  */
-const ATTEMPT_TIMEOUTS_MS = [25_000, 10_000, 10_000];
-const MAX_ATTEMPTS = ATTEMPT_TIMEOUTS_MS.length; // 1 initial + 2 retries
+const FETCH_DEADLINE_MS = 50_000;
+const MAX_ATTEMPTS = 3; // 1 initial + 2 retries
+
+/**
+ * No retry starts (and no backoff sleep happens) unless at least this much of
+ * the budget would remain once the backoff ends. Even the smallest table takes
+ * a few seconds on a large account (List measured ~2.5s in #112), so a shorter
+ * attempt would almost surely time out and only delay the error.
+ */
+const MIN_ATTEMPT_MS = 5_000;
 
 const sleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
-/** Wrap a caught throwable as retryable, carrying only its class name — never a URL. */
+/**
+ * Wrap a caught throwable as retryable, carrying only its error name (e.g.
+ * "TimeoutError" for an AbortSignal.timeout abort, "TypeError" for a network
+ * failure) — never its message, which can contain the URL. The name is
+ * accepted only if it is a plain identifier, so nothing else can slip through.
+ */
 function toRetryable(e: unknown): RetryableError {
-  return new RetryableError(e instanceof Error ? e.constructor.name : "Error");
+  const name = e instanceof Error ? e.name : "";
+  return new RetryableError(/^[A-Za-z]\w{0,39}$/.test(name) ? name : "Error");
 }
 
 /** Decode a response body using the Content-Type charset, falling back to windows-1252. */
@@ -151,8 +166,10 @@ async function fetchTableOnce(url: string, timeoutMs: number): Promise<string> {
 /**
  * Fetch a single table from CellarTracker as CSV text, retrying transient
  * failures. Retries network errors and HTTP 5xx (2 retries, jittered exponential
- * backoff ~1s then ~3s); never retries AuthError, ServiceError, or 4xx. Decodes
- * using the charset from the Content-Type header, falling back to windows-1252.
+ * backoff ~1s then ~3s); never retries AuthError, ServiceError, or 4xx. All
+ * attempts share one FETCH_DEADLINE_MS budget; a retry starts only if at least
+ * MIN_ATTEMPT_MS would remain after its backoff. Decodes using the charset from
+ * the Content-Type header, falling back to windows-1252.
  *
  * `opts.baseDelayMs` (default 1000) sets the backoff base; tests pass 0.
  */
@@ -171,33 +188,42 @@ export async function fetchTable(
   const url = `${BASE_URL}?${params.toString()}`;
   const table = extraParams.Table ?? "unknown";
   const baseDelayMs = opts.baseDelayMs ?? 1000;
+  const start = Date.now();
+  const deadline = start + FETCH_DEADLINE_MS;
 
-  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+  for (let attempt = 1; ; attempt++) {
     try {
-      return await fetchTableOnce(url, ATTEMPT_TIMEOUTS_MS[attempt - 1]);
+      // Attempt 1 gets the full budget; retries only ever start with at least
+      // MIN_ATTEMPT_MS left, so the timeout is always positive.
+      return await fetchTableOnce(url, deadline - Date.now());
     } catch (e) {
       // Auth/service failures are definitive — surface their clean messages as-is.
       if (e instanceof AuthError || e instanceof ServiceError) {
         throw e;
       }
-      // Retry transient failures with jittered exponential backoff.
-      if (e instanceof RetryableError && attempt < MAX_ATTEMPTS) {
-        const delay = baseDelayMs * Math.pow(3, attempt - 1);
-        await sleep(delay * (0.85 + Math.random() * 0.3));
+      if (!(e instanceof RetryableError)) {
+        // Non-retryable (4xx): status only, never the URL or credentials.
+        const detail = e instanceof Error ? e.message : "unknown error";
+        throw new Error(`Failed to fetch table '${table}' from CellarTracker: ${detail}`);
+      }
+      // Retry transient failures with jittered exponential backoff, but only if
+      // a useful attempt still fits before the deadline after sleeping.
+      const delay =
+        baseDelayMs * Math.pow(3, attempt - 1) * (0.85 + Math.random() * 0.3);
+      if (attempt < MAX_ATTEMPTS && deadline - Date.now() - delay >= MIN_ATTEMPT_MS) {
+        await sleep(delay);
         continue;
       }
-      // Exhausted retries, or a non-retryable error (4xx). All errors reaching
-      // here carry a controlled message (status or class name) — never the URL,
-      // so the password embedded in its query string cannot leak.
-      const detail = e instanceof Error ? e.message : "unknown error";
-      const suffix = e instanceof RetryableError ? ` after ${MAX_ATTEMPTS} attempts` : "";
+      // Out of attempts or time. The message is a status or error name only —
+      // never the URL, so the password in its query string cannot leak.
+      const elapsedS = Math.round((Date.now() - start) / 1000);
+      const attempts = attempt === 1 ? "1 attempt" : `${attempt} attempts`;
       throw new Error(
-        `Failed to fetch table '${table}' from CellarTracker${suffix}: ${detail}`
+        `Failed to fetch table '${table}' from CellarTracker after ${attempts}: ` +
+          `${e.message} after ${elapsedS}s`
       );
     }
   }
-  // Unreachable: the loop returns or throws on the final attempt.
-  throw new Error(`Failed to fetch table '${table}' from CellarTracker`);
 }
 
 /** Save CSV text with timestamp and update _latest copy. */
