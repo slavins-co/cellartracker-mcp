@@ -333,3 +333,147 @@ describe("fetchTable retry with backoff (issue #47)", () => {
     expect(err.message).not.toContain("myuser");
   });
 });
+
+describe("fetchTable overall deadline (issue #112)", () => {
+  // Node's AbortSignal.timeout runs on internal timers that vitest's fake timers
+  // don't control. Swap it for an AbortController driven by the (faked) global
+  // setTimeout, aborting with the same DOMException("TimeoutError") reason, so
+  // the real 50s budget can be exercised in simulated time.
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.spyOn(Math, "random").mockReturnValue(0.5); // jitter factor exactly 1.0
+    vi.spyOn(AbortSignal, "timeout").mockImplementation((ms: number) => {
+      const controller = new AbortController();
+      setTimeout(
+        () =>
+          controller.abort(
+            new DOMException("The operation was aborted due to timeout", "TimeoutError")
+          ),
+        ms
+      );
+      return controller.signal;
+    });
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  type Step = { after: number; respond?: () => Response; reject?: () => unknown };
+
+  /**
+   * Stub fetch with one scripted step per call: settle `after` ms after the call
+   * (a response or a rejection), or hang until the request's signal aborts when
+   * the step has neither. Calls past the script hang too.
+   */
+  function scriptedFetch(steps: Step[]): ReturnType<typeof vi.fn> {
+    let call = 0;
+    const mock = vi.fn((_url: string, init: RequestInit) => {
+      const step = steps[call++] ?? { after: Infinity };
+      return new Promise<Response>((resolve, reject) => {
+        const signal = init.signal!;
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        if (step.respond || step.reject) {
+          timer = setTimeout(() => {
+            if (step.respond) resolve(step.respond());
+            else reject(step.reject!());
+          }, step.after);
+        }
+        signal.addEventListener("abort", () => {
+          clearTimeout(timer);
+          reject(signal.reason);
+        });
+      });
+    });
+    vi.stubGlobal("fetch", mock);
+    return mock;
+  }
+
+  /** Run fetchTable to completion in simulated time; returns result/error and elapsed ms. */
+  async function run(user = "u", password = "p") {
+    const start = Date.now();
+    // Elapsed is taken when fetchTable settles, not after the clock is drained.
+    const settled = fetchTable(user, password, TABLES.Consumed.params).then(
+      (text) => ({ text, err: undefined as Error | undefined, elapsed: Date.now() - start }),
+      (err: Error) => ({ text: undefined as string | undefined, err, elapsed: Date.now() - start })
+    );
+    await vi.advanceTimersByTimeAsync(120_000);
+    return settled;
+  }
+
+  it("lets a slow first response (30s, past the old 25s cap) succeed on attempt 1", async () => {
+    const mock = scriptedFetch([
+      { after: 30_000, respond: () => csvResponse("iWine,Wine\n1,X\n") },
+    ]);
+
+    const { text, err } = await run();
+    expect(err).toBeUndefined();
+    expect(text).toContain("iWine");
+    expect(mock).toHaveBeenCalledTimes(1);
+  });
+
+  it("gives a retry only the time remaining, and stops at the deadline", async () => {
+    // Fast 503, ~1s backoff, then a hang: attempt 2 must be cut off at the
+    // 50s deadline, with no third attempt (the old schedule made 3 attempts).
+    const mock = scriptedFetch([
+      { after: 100, respond: () => new Response("", { status: 503 }) },
+    ]);
+
+    const { err, elapsed } = await run();
+    expect(err).toBeInstanceOf(Error);
+    expect(mock).toHaveBeenCalledTimes(2);
+    expect(elapsed).toBe(50_000); // the retry ran exactly to the deadline
+  });
+
+  it("still retries with the remaining budget after a late network error", async () => {
+    // Fails at 40s: 10s left, minus ~1s backoff, is still a useful retry.
+    const mock = scriptedFetch([
+      { after: 40_000, reject: () => new TypeError("fetch failed") },
+    ]);
+
+    const { err, elapsed } = await run();
+    expect(err).toBeInstanceOf(Error);
+    expect(mock).toHaveBeenCalledTimes(2);
+    expect(elapsed).toBe(50_000); // the retry ran exactly to the deadline
+  });
+
+  it("does not start a retry (or sleep) when too little time is left", async () => {
+    // Fails at 47s: 3s left, not enough for a useful attempt.
+    const mock = scriptedFetch([
+      { after: 47_000, reject: () => new TypeError("fetch failed") },
+    ]);
+
+    const { err, elapsed } = await run();
+    expect(err).toBeInstanceOf(Error);
+    expect(mock).toHaveBeenCalledTimes(1);
+    expect(elapsed).toBe(47_000); // failed immediately, no backoff sleep
+  });
+
+  it("still retries fast 5xx failures and succeeds (503, 503, 200)", async () => {
+    const mock = scriptedFetch([
+      { after: 100, respond: () => new Response("", { status: 503 }) },
+      { after: 100, respond: () => new Response("", { status: 503 }) },
+      { after: 100, respond: () => csvResponse("iWine,Wine\n1,X\n") },
+    ]);
+
+    const { text, err } = await run();
+    expect(err).toBeUndefined();
+    expect(text).toContain("iWine");
+    expect(mock).toHaveBeenCalledTimes(3);
+  });
+
+  it("reports a timeout as 'TimeoutError after 50s', never DOMException or the URL", async () => {
+    scriptedFetch([]); // every attempt hangs until aborted
+
+    const { err, elapsed } = await run("myuser", "SECRET_PW");
+    expect(elapsed).toBe(50_000);
+    expect(err!.message).toContain("TimeoutError after 50s");
+    expect(err!.message).toContain("'Consumed'");
+    expect(err!.message).not.toContain("DOMException");
+    expect(err!.message).not.toContain("xlquery");
+    expect(err!.message).not.toContain("http");
+    expect(err!.message).not.toContain("myuser");
+    expect(err!.message).not.toContain("SECRET_PW");
+  });
+});
