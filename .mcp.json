@@ -2,7 +2,7 @@
   "mcpServers": {
     "cellartracker": {
       "command": "npx",
-      "args": ["-y", "cellartracker-mcp"],
+      "args": ["-y", "cellartracker-mcp@0.5.1"],
       "env": {
         "CT_USERNAME": "${CT_USERNAME}",
         "CT_PASSWORD": "${CT_PASSWORD}"
