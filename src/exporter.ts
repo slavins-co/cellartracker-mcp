@@ -89,7 +89,7 @@ const sleep = (ms: number): Promise<void> =>
 /**
  * Wrap a caught throwable as retryable, carrying only its error name (e.g.
  * "TimeoutError" for an AbortSignal.timeout abort, "TypeError" for a network
- * failure) — never its message, which can contain the URL. The name is
+ * failure), never its message, which can contain the URL. The name is
  * accepted only if it is a plain identifier, so nothing else can slip through.
  */
 function toRetryable(e: unknown): RetryableError {
@@ -188,14 +188,17 @@ export async function fetchTable(
   const url = `${BASE_URL}?${params.toString()}`;
   const table = extraParams.Table ?? "unknown";
   const baseDelayMs = opts.baseDelayMs ?? 1000;
-  const start = Date.now();
+  // Monotonic clock: a wall-clock (Date.now) jump mid-fetch must not stretch
+  // or collapse the budget.
+  const start = performance.now();
   const deadline = start + FETCH_DEADLINE_MS;
 
   for (let attempt = 1; ; attempt++) {
     try {
       // Attempt 1 gets the full budget; retries only ever start with at least
-      // MIN_ATTEMPT_MS left, so the timeout is always positive.
-      return await fetchTableOnce(url, deadline - Date.now());
+      // MIN_ATTEMPT_MS left, so the timeout is always positive. Floored because
+      // AbortSignal.timeout rejects non-integer delays.
+      return await fetchTableOnce(url, Math.floor(deadline - performance.now()));
     } catch (e) {
       // Auth/service failures are definitive — surface their clean messages as-is.
       if (e instanceof AuthError || e instanceof ServiceError) {
@@ -210,13 +213,13 @@ export async function fetchTable(
       // a useful attempt still fits before the deadline after sleeping.
       const delay =
         baseDelayMs * Math.pow(3, attempt - 1) * (0.85 + Math.random() * 0.3);
-      if (attempt < MAX_ATTEMPTS && deadline - Date.now() - delay >= MIN_ATTEMPT_MS) {
+      if (attempt < MAX_ATTEMPTS && deadline - performance.now() - delay >= MIN_ATTEMPT_MS) {
         await sleep(delay);
         continue;
       }
-      // Out of attempts or time. The message is a status or error name only —
+      // Out of attempts or time. The message is a status or error name only,
       // never the URL, so the password in its query string cannot leak.
-      const elapsedS = Math.round((Date.now() - start) / 1000);
+      const elapsedS = Math.round((performance.now() - start) / 1000);
       const attempts = attempt === 1 ? "1 attempt" : `${attempt} attempts`;
       throw new Error(
         `Failed to fetch table '${table}' from CellarTracker after ${attempts}: ` +

@@ -423,7 +423,7 @@ describe("fetchTable overall deadline (issue #112)", () => {
     const { err, elapsed } = await run();
     expect(err).toBeInstanceOf(Error);
     expect(mock).toHaveBeenCalledTimes(2);
-    expect(elapsed).toBeLessThanOrEqual(50_000 + 100);
+    expect(elapsed).toBe(50_000); // the retry ran exactly to the deadline
   });
 
   it("still retries with the remaining budget after a late network error", async () => {
@@ -435,7 +435,7 @@ describe("fetchTable overall deadline (issue #112)", () => {
     const { err, elapsed } = await run();
     expect(err).toBeInstanceOf(Error);
     expect(mock).toHaveBeenCalledTimes(2);
-    expect(elapsed).toBeLessThanOrEqual(50_000 + 100);
+    expect(elapsed).toBe(50_000); // the retry ran exactly to the deadline
   });
 
   it("does not start a retry (or sleep) when too little time is left", async () => {
