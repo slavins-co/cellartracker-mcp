@@ -1,6 +1,10 @@
 # Source (compiled output is in dist/)
 /src/
 tsconfig.json
+tsconfig.test.json
+
+# Compiled tests from builds before tests were excluded from tsconfig.json
+/dist/__tests__/
 
 # Development
 /.venv/
