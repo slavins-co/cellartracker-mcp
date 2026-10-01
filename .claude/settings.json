@@ -2,7 +2,7 @@
   "attribution": {
     "commit": "",
     "pr": "",
-    "sessionUrl": true
+    "sessionUrl": false
   },
   "hooks": {
     "SessionStart": [
