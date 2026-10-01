@@ -1,7 +1,7 @@
 {
   "attribution": {
-    "commit": null,
-    "pr": null,
+    "commit": "",
+    "pr": "",
     "sessionUrl": true
   },
   "hooks": {
