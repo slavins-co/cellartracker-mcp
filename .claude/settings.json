@@ -1,0 +1,32 @@
+{
+  "attribution": {
+    "commit": null,
+    "pr": null,
+    "sessionUrl": true
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ -n \"$CLAUDE_CODE_REMOTE\" ]; then cd \"$CLAUDE_PROJECT_DIR\" && { npm ci --no-audit --no-fund >/dev/null 2>&1 || echo 'SessionStart: npm ci failed; run it before building or testing.'; }; fi; exit 0",
+            "timeout": 300
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash|mcp__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/merge-gate.py\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

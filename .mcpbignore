@@ -19,6 +19,7 @@ tsconfig.json
 
 # Tasks and docs
 /tasks/
+CLAUDE.md
 /docs/
 README.md
 LICENSE
