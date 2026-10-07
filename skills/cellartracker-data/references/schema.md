@@ -224,14 +224,16 @@ The richest scoring and maturity data. One row per wine in inventory.
 ### Maturity Curve Fields
 | Column | Type | Description |
 |---|---|---|
-| Available | float | Overall maturity percentage. <1 = before peak, ~1 = at peak, >1 = past peak |
-| Linear | float | Linear maturity model |
-| Bell | float | Bell curve maturity model |
-| Early | float | Early-drinking model |
-| Late | float | Late-drinking model |
-| Fast | float | Fast-maturing model |
-| TwinPeak | float | Two-peak maturity model |
-| Simple | float | Simple maturity model |
+| Available | float | Bottle-count drinkability index (consumption-pacing signal, not maturity). Formula: `(days into window / total days in window) * (on hand + pending + consumed) - consumed`. Units: bottles. See https://support.cellartracker.com/article/28-ready-to-drink-report. Never use Available thresholds to judge if a wine is "ready" or "past peak" - maturity comes from the BeginConsume/EndConsume window dates and Source only. |
+| Linear | float | Same drinkability index on a linear aging curve |
+| Bell | float | Same drinkability index on a bell-curve aging model |
+| Early | float | Same drinkability index on an early-drinking curve |
+| Late | float | Same drinkability index on a late-drinking curve |
+| Fast | float | Same drinkability index on a fast-maturing curve |
+| TwinPeak | float | Same drinkability index on a two-peak aging model |
+| Simple | float | Same drinkability index on a simple linear model |
+
+**Curve Assignment:** CellarTracker assigns a single curve per wine type (e.g., Late Bell for red Bordeaux/N. Rhône/Rioja; Twin Peak for red S. Rhône, white N. Rhône, white German; Fast Aging for rosé/Beaujolais/Moscato d'Asti; Standard Bell for other reds; Early Bell for other dry whites). The `Available` column always shows the index for the type-assigned curve; all 7 columns compute the same metric on different curves so you can compare pacing under different aging assumptions.
 
 ### Inventory Counts
 | Column | Type | Description |
