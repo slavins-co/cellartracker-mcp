@@ -104,6 +104,10 @@ export const searchCellarShape = {
 export const drinkingRecommendationSchema = wineRowSchema.extend({
   status: z.string(),
   window: z.string(),
+  drinkabilityIndex: z.number().nullable(),
+  windowBegin: z.number().nullable(),
+  windowEnd: z.number().nullable(),
+  windowSource: z.string(),
 });
 export type DrinkingRecommendation = z.infer<typeof drinkingRecommendationSchema>;
 

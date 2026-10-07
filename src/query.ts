@@ -178,14 +178,94 @@ function safeInt(value: string | undefined, fallback = 0): number {
 }
 
 /**
- * Cross-reference List + Availability and sort by drinking urgency.
+ * Extract the 4-digit year from a consume/drink window value. Accepts a bare
+ * year ("2028"), M/D/YYYY ("12/31/2028", the Availability table format) and
+ * YYYY-MM-DD. Returns null for empty or unparseable input.
+ */
+export function windowYear(value: string | undefined): number | null {
+  const v = value?.trim();
+  if (!v) return null;
+  if (/^\d{4}$/.test(v)) return parseInt(v, 10);
+  const iso = toIsoDate(v);
+  return iso ? parseInt(iso.slice(0, 4), 10) : null;
+}
+
+export interface MaturityStatus {
+  label: string;
+  windowBegin: number | null;
+  windowEnd: number | null;
+  windowSource: string;
+  drinkabilityIndex: number | null;
+  /** "B-E" with "?" for a missing bound, or "unknown" when neither is listed. */
+  window: string;
+}
+
+/**
+ * Describe where a wine sits relative to its listed consume window.
  *
- * Priority tiers:
- *   1. Available > 1.0 (past peak) — most past-peak first
- *   2. EndConsume <= current_year (window closing) — earliest closing first
- *   3. Available 0.7–1.0 (in window)
- *   4. Available 0.3–0.7 (approaching)
- *   5. No data → end of list
+ * The label comes only from the window years (BeginConsume/EndConsume, falling
+ * back to BeginDrink/EndDrink) and the current year. The `Available` column
+ * never affects it.
+ *
+ * What `Available` is: CellarTracker's "Drinkability Index"
+ * (https://support.cellartracker.com/article/28-ready-to-drink-report), NOT a
+ * maturity fraction.
+ *   % Window Used = days into window / total days in window
+ *   Should Have Consumed = % Window Used * (on hand + pending + consumed)
+ *   Index = Should Have Consumed - bottles actually consumed
+ * Units are bottles, so it scales with bottle count. Negative means drinking
+ * faster than pace, or the window has not opened yet. Positive up to the
+ * bottles remaining is roughly how many bottles will be left at window close.
+ * Positive above the bottles remaining means the window ended with bottles
+ * left (CT adds a +100 penalty that grows over time). The export's seven curve
+ * columns (Linear, Bell, Early, Late, Fast, TwinPeak, Simple) are the same
+ * index on different curves; `Available` equals the curve CT assigns by wine
+ * type (Late Bell: red Bordeaux/N. Rhone/Rioja; Twin Peak: red S. Rhone, white
+ * N. Rhone, white German; Fast Aging: rose/Beaujolais/Moscato d'Asti; Standard
+ * Bell: other reds; Early Bell: other dry whites).
+ * It must never be read as a maturity fraction or used to assert a wine is
+ * past peak.
+ */
+export function maturityStatus(row: Row, currentYear: number): MaturityStatus {
+  const windowBegin = windowYear(row.BeginConsume || row.BeginDrink);
+  const windowEnd = windowYear(row.EndConsume || row.EndDrink);
+  const windowSource = (row.Source ?? "").trim();
+  const idx = row.Available?.trim() ? parseFloat(row.Available) : NaN;
+  const drinkabilityIndex = isNaN(idx) ? null : idx;
+
+  const span = `${windowBegin ?? "?"}-${windowEnd ?? "?"}`;
+  const listed = windowBegin !== null || windowEnd !== null;
+  let label: string;
+  if (!listed) label = "No listed window";
+  else if (windowBegin !== null && currentYear < windowBegin)
+    label = `Before listed window (opens ${windowBegin})`;
+  else if (windowEnd !== null && currentYear > windowEnd)
+    label = `Past listed window (${windowEnd})`;
+  else if (windowEnd !== null && currentYear === windowEnd)
+    label = `Late in listed window (${span})`;
+  else label = `In listed window (${span})`;
+
+  return {
+    label,
+    windowBegin,
+    windowEnd,
+    windowSource,
+    drinkabilityIndex,
+    window: listed ? span : "unknown",
+  };
+}
+
+/**
+ * Cross-reference List + Availability and sort by listed-window urgency.
+ *
+ * Tiers (window first; the drinkability index only breaks ties):
+ *   0. Past listed window (current year > end) - oldest end first
+ *   1. Final year of window (current year == end)
+ *   2. In window - earliest end first
+ *   3. Window not yet open - earliest begin first
+ *   4. No window data
+ * Within a tier (after the key above), higher drinkability index first;
+ * wines without an index sort after those with one.
  */
 export function drinkingPriority(
   listRows: Row[],
@@ -193,29 +273,29 @@ export function drinkingPriority(
   currentYear: number
 ): Row[] {
   const merged = crossReference(listRows, availRows, "iWine");
+  const END_LAST = Number.MAX_SAFE_INTEGER;
 
   function sortKey(row: Row): [number, number, number] {
-    const avail = safeFloat(row.Available, -1);
-    let endConsume = safeInt(row.EndConsume, 0);
-    if (!endConsume) endConsume = safeInt(row.EndDrink, 0);
-
-    if (avail > 1.0) return [0, -avail, endConsume];
-    if (endConsume && endConsume <= currentYear) return [1, endConsume, -avail];
-    if (avail >= 0.7 && avail <= 1.0) return [2, -avail, endConsume];
-    if (avail >= 0.3 && avail < 0.7) return [3, -avail, endConsume];
-    return [4, 0, 0];
+    const m = maturityStatus(row, currentYear);
+    const { windowBegin: b, windowEnd: e } = m;
+    const idx = m.drinkabilityIndex === null ? Infinity : -m.drinkabilityIndex;
+    if (b === null && e === null) return [4, 0, 0];
+    if (b !== null && currentYear < b) return [3, b, idx];
+    if (e !== null && currentYear > e) return [0, e, idx];
+    if (e !== null && currentYear === e) return [1, e, idx];
+    return [2, e ?? END_LAST, idx];
   }
 
-  merged.sort((a, b) => {
-    const ka = sortKey(a);
-    const kb = sortKey(b);
+  // Compute each key once rather than inside the comparator.
+  const keyed = merged.map((row) => ({ row, key: sortKey(row) }));
+  keyed.sort((a, b) => {
     for (let i = 0; i < 3; i++) {
-      if (ka[i] !== kb[i]) return ka[i] - kb[i];
+      if (a.key[i] !== b.key[i]) return a.key[i] < b.key[i] ? -1 : 1;
     }
     return 0;
   });
 
-  return merged;
+  return keyed.map((k) => k.row);
 }
 
 export interface SpendSummaryResult {

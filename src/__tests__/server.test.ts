@@ -185,7 +185,7 @@ describe("fmtWine deep link", () => {
     const serverSrc = fs.readFileSync(path.resolve(__dirname, "../server.ts"), "utf-8");
     const block = serverSrc.slice(
       serverSrc.indexOf("function fmtWine"),
-      serverSrc.indexOf("function maturityLabel")
+      serverSrc.indexOf("const require = createRequire")
     );
     expect(block).toMatch(/wineUrl\(row\.iWine\)/);
     expect(block).toMatch(/if \(link\) lines\.push\(`\s*Link: \$\{link\}`\)/);
@@ -410,14 +410,18 @@ const FIXTURES: Record<string, string> = {
       { iWine: "101", Wine: "Château Alpha", Vintage: "2018", Quantity: "3", Location: "Cellar A", Bin: "1-2", Price: "50", Color: "Red", Country: "France", Region: "Bordeaux", Varietal: "Cabernet", Category: "1", CT: "92" },
       { iWine: "102", Wine: "Domaine Beta", Vintage: "2020", Quantity: "6", Location: "Fridge", Price: "30", Color: "White", Country: "France", Region: "Burgundy", Varietal: "Chardonnay", Category: "1", CT: "90" },
       { iWine: "103", Wine: "Barolo Gamma", Vintage: "2016", Quantity: "2", Location: "Cellar A", Bin: "1-10", Price: "80", Color: "Red", Country: "Italy", Region: "Piedmont", Varietal: "Nebbiolo", Category: "1", CT: "95" },
+      { iWine: "201", Wine: "Regression Chardonnay", Vintage: "2019", Quantity: "2", Color: "White", BeginConsume: "2023", EndConsume: "2028" },
+      { iWine: "202", Wine: "Regression Sauvignon Blanc", Vintage: "2024", Quantity: "2", Color: "White", BeginConsume: "2025", EndConsume: "2027" },
     ]
   ),
   Availability: csv(
-    ["iWine", "Available", "EndConsume", "CT", "WA", "WS", "JR", "AG"],
+    ["iWine", "BeginConsume", "EndConsume", "Source", "Inventory", "Consumed", "Pending", "Available", "Early", "Linear", "CT", "WA", "WS", "JR", "AG"],
     [
       { iWine: "101", Available: "1.2", EndConsume: "2024", CT: "92" },
       { iWine: "102", Available: "0.8", EndConsume: "2030", CT: "90" },
       { iWine: "103", Available: "0.5", EndConsume: "2035", CT: "95" },
+      { iWine: "201", BeginConsume: "1/1/2023", EndConsume: "12/31/2028", Source: "Personal", Inventory: "2", Consumed: "1", Pending: "0", Available: "1.46944751381215", Early: "1.46944751381215", Linear: "0.882701962574167" },
+      { iWine: "202", BeginConsume: "1/1/2025", EndConsume: "12/31/2027", Source: "Personal", Inventory: "2", Consumed: "0", Pending: "0", Available: "1.588", Early: "1.588", Linear: "1.17733089579525" },
     ]
   ),
   Purchase: csv(
@@ -524,12 +528,12 @@ describe("structured output — data tools (fixture cache)", () => {
   it("search-cellar returns structured wines agreeing with the text count", async () => {
     const r = await call("search-cellar", {});
     const sc = r.structuredContent as { total: number; offset: number; count: number; wines: { iWine: string; url?: string }[] };
-    expect(sc.total).toBe(3);
+    expect(sc.total).toBe(5);
     expect(sc.offset).toBe(0);
-    expect(sc.count).toBe(3);
-    expect(sc.wines).toHaveLength(3);
+    expect(sc.count).toBe(5);
+    expect(sc.wines).toHaveLength(5);
     expect(sc.wines[0].url).toMatch(/wine\.asp\?iWine=/);
-    expect(textOf(r)).toContain("Found 3 wine(s)");
+    expect(textOf(r)).toContain("Found 5 wine(s)");
   });
 
   it("search-cellar empty result still returns valid zero-filled structured output", async () => {
@@ -544,16 +548,16 @@ describe("structured output — data tools (fixture cache)", () => {
   it("search-cellar offset skips the requested number of results", async () => {
     const r = await call("search-cellar", { offset: 1 });
     const sc = r.structuredContent as { total: number; offset: number; count: number; wines: { iWine: string }[] };
-    expect(sc.total).toBe(3);
+    expect(sc.total).toBe(5);
     expect(sc.offset).toBe(1);
-    expect(sc.count).toBe(2);
-    expect(sc.wines).toHaveLength(2);
+    expect(sc.count).toBe(4);
+    expect(sc.wines).toHaveLength(4);
   });
 
   it("search-cellar offset beyond the total returns a non-misleading message, not the zero-match one", async () => {
     const r = await call("search-cellar", { offset: 10 });
     const sc = r.structuredContent as { total: number; offset: number; count: number; wines: unknown[] };
-    expect(sc.total).toBe(3);
+    expect(sc.total).toBe(5);
     expect(sc.offset).toBe(10);
     expect(sc.count).toBe(0);
     expect(sc.wines).toHaveLength(0);
@@ -562,26 +566,137 @@ describe("structured output — data tools (fixture cache)", () => {
     expect(text).not.toContain("No wines found matching your search criteria.");
   });
 
-  it("drinking-recommendations sorts the past-peak wine first with the right status", async () => {
+  it("drinking-recommendations sorts the wine past its listed window first, without PAST PEAK wording", async () => {
     const r = await call("drinking-recommendations", {});
     const sc = r.structuredContent as {
       recommendations: { iWine: string; status: string; window: string }[];
     };
-    expect(sc.recommendations.length).toBe(3);
-    // Fixture iWine 101 has Available 1.2 (>1.0 = past peak) → priority tier 0,
-    // so it must sort first and carry the past-peak status. A regression that
-    // inverts the maturity classification or the sort would fail here.
+    expect(sc.recommendations.length).toBe(5);
+    // Fixture iWine 101 has EndConsume 2024, so it is past its listed window
+    // (tier 0) and sorts first. Its Available 1.2 must not drive the label.
     expect(sc.recommendations[0].iWine).toBe("101");
-    expect(sc.recommendations[0].status).toMatch(/PAST PEAK/);
+    expect(sc.recommendations[0].status).toBe("Past listed window (2024)");
+    expect(sc.recommendations[0].status).not.toMatch(/PAST PEAK|drink now/i);
     expect(sc.recommendations[0].window).toBeTruthy();
+  });
+
+  describe("drinking-recommendations drinkability index (fixed clock 2026-10-07)", () => {
+    type Rec = {
+      iWine: string;
+      status: string;
+      window: string;
+      drinkabilityIndex: number | null;
+      windowBegin: number | null;
+      windowEnd: number | null;
+      windowSource: string;
+    };
+    let r: Awaited<ReturnType<Client["callTool"]>>;
+
+    beforeAll(async () => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(new Date("2026-10-07T12:00:00Z"));
+      try {
+        r = await call("drinking-recommendations", {});
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    const recs = () => (r.structuredContent as { recommendations: Rec[] }).recommendations;
+
+    it("labels a high-index wine by its listed window, not the index", () => {
+      const w = recs().find((x) => x.iWine === "201")!;
+      expect(w.status).toBe("In listed window (2023-2028)");
+      expect(w.status).not.toMatch(/PAST PEAK|drink now/i);
+      expect(w.drinkabilityIndex).toBeCloseTo(1.4694, 4);
+      expect(w.windowBegin).toBe(2023);
+      expect(w.windowEnd).toBe(2028);
+      expect(w.windowSource).toBe("Personal");
+      expect(w.window).toBe("2023-2028");
+    });
+
+    it("reports index 1.588 for a 2025-2027 window as in window", () => {
+      const w = recs().find((x) => x.iWine === "202")!;
+      expect(w.status).toBe("In listed window (2025-2027)");
+      expect(w.status).not.toMatch(/PAST PEAK|drink now/i);
+      expect(w.drinkabilityIndex).toBeCloseTo(1.588, 3);
+      expect(w.window).toBe("2025-2027");
+    });
+
+    it("renders the window with source and a pacing line, and never PAST PEAK wording", () => {
+      const text = textOf(r);
+      expect(text).toContain("Window: 2023-2028 (Personal)");
+      expect(text).toContain("Pacing: CT drinkability index +1.47");
+      expect(text).toContain("Status: In listed window (2023-2028)");
+      expect(text).not.toMatch(/PAST PEAK|drink now/i);
+    });
+
+    it("structuredContent validates against the declared outputSchema (SDK would have thrown otherwise)", async () => {
+      const tools = (await client.listTools()).tools;
+      const tool = tools.find((t) => t.name === "drinking-recommendations")!;
+      const validate = new Ajv2020({ strict: false }).compile(tool.outputSchema as object);
+      expect(validate(r.structuredContent)).toBe(true);
+    });
+  });
+
+  it("drinking-recommendations does not call a past-window index 'bottles behind'", async () => {
+    // Past the window, CT adds a +100 penalty to the index, so "bottles behind
+    // pace" would misread it. Fixture iWine 101's window ended in 2024.
+    const text = textOf(await call("drinking-recommendations", {}));
+    const block101 = text.split(/\n\d+\. /).find((b) => b.includes("Past listed window (2024)"))!;
+    expect(block101).toContain("Pacing: CT drinkability index +1.20 (past the listed window; CT adds a growing penalty here)");
+    expect(block101).not.toContain("bottles behind");
+  });
+
+  it("drinking-recommendations renders a 4-digit year for an Availability-only M/D/YYYY window", async () => {
+    // iWine 201 has List-side BeginConsume/EndConsume; build an isolated cache
+    // where only the Availability row carries the window.
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ct-availonly-"));
+    const prev = process.env.CT_CACHE_DIR;
+    try {
+      for (const [table, body] of Object.entries(FIXTURES)) {
+        fs.writeFileSync(path.join(dir, `${table}_latest.csv`), body, "utf-8");
+      }
+      fs.writeFileSync(
+        path.join(dir, "List_latest.csv"),
+        csv(["iWine", "Wine", "Vintage", "Quantity", "Color"], [
+          { iWine: "301", Wine: "Availability Only Red", Vintage: "2015", Quantity: "1", Color: "Red" },
+        ]),
+        "utf-8"
+      );
+      fs.writeFileSync(
+        path.join(dir, "Availability_latest.csv"),
+        csv(["iWine", "BeginConsume", "EndConsume", "Source", "Available"], [
+          { iWine: "301", BeginConsume: "1/1/2024", EndConsume: "12/31/2031", Source: "CellarTracker", Available: "-0.92" },
+        ]),
+        "utf-8"
+      );
+      process.env.CT_CACHE_DIR = dir;
+      // Freeze the clock inside the 2024-2031 window so the Pacing wording is stable.
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(new Date("2026-10-07T12:00:00Z"));
+      const res = await call("drinking-recommendations", {});
+      const text = textOf(res);
+      expect(text).toContain("Window: 2024-2031 (CellarTracker)");
+      expect(text).not.toMatch(/Window: \d{1,2}-/);
+      expect(text).toContain("Pacing: CT drinkability index -0.92 (ahead of CT's pace, or window not yet open)");
+      const sc = res.structuredContent as { recommendations: { window: string; windowEnd: number | null }[] };
+      expect(sc.recommendations[0].window).toBe("2024-2031");
+      expect(sc.recommendations[0].windowEnd).toBe(2031);
+    } finally {
+      vi.useRealTimers();
+      if (prev === undefined) delete process.env.CT_CACHE_DIR;
+      else process.env.CT_CACHE_DIR = prev;
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it("cellar-stats totals agree with the text headline", async () => {
     const r = await call("cellar-stats", {});
     const sc = r.structuredContent as { totalBottles: number; uniqueWines: number };
-    expect(sc.totalBottles).toBe(11);
-    expect(sc.uniqueWines).toBe(3);
-    expect(textOf(r)).toContain("Total bottles:  11");
+    expect(sc.totalBottles).toBe(15);
+    expect(sc.uniqueWines).toBe(5);
+    expect(textOf(r)).toContain("Total bottles:  15");
   });
 
   it("cellar-stats group_by=color carries a structured breakdown", async () => {
@@ -589,7 +704,7 @@ describe("structured output — data tools (fixture cache)", () => {
     const sc = r.structuredContent as { breakdown?: { dimension: string; rows: { key: string; bottles: number }[] } };
     expect(sc.breakdown?.dimension).toBe("color");
     const totalInBreakdown = sc.breakdown!.rows.reduce((s, row) => s + row.bottles, 0);
-    expect(totalInBreakdown).toBe(11);
+    expect(totalInBreakdown).toBe(15);
   });
 
   it("cellar-stats invalid group_by is flagged isError with the friendly text", async () => {

@@ -51,7 +51,7 @@ Eight tables are exported from CellarTracker. Not all will always be available �
 - **"What should I drink tonight?"** — List (inventory + location) + Availability (maturity) + Notes (past impressions)
 - **"Evaluate this purchase"** — List (redundancy check) + Tag (is it on wishlist?) + Purchase (have I bought this before?)
 - **"What have I been drinking?"** — Consumed (patterns, frequency, notes)
-- **"Cellar overview / audit"** — List (full inventory) + Availability (what's past peak?)
+- **"Cellar overview / audit"** — List (full inventory) + Availability (maturity and consumption pace)
 - **"How much have I spent?"** — Purchase (complete spend history)
 - **"What's on the way / still coming?"** — Pending (in-transit orders not yet received)
 - **"Where's this bottle? / What's in my wine fridge?"** — Bottles via `bottle-details` (per-bottle location, bin, barcode, state)
@@ -132,16 +132,11 @@ The Availability table provides the richest maturity data. Key fields:
 
 - `BeginConsume` / `EndConsume`: Consensus or personal drinking window (date format: `M/D/YYYY` or `YYYY`)
 - `Source`: Where the window comes from — `Personal`, `Community`, or a professional reviewer name
-- `Available`: Maturity percentage (0-1 = approaching peak, ~1 = at peak, >1 = past peak)
-- `Bell` / `Linear` / `Early` / `Late` / `Fast` / `TwinPeak` / `Simple`: Different maturity curve models
+- `Available`: Bottle-count pacing index showing consumption progress within the listed window. Formula: `(days into window / total window days) * (on hand + pending + consumed) - actual consumed`. Measured in bottles; scales with inventory size. Negative = drinking faster than pace, or window not yet open; 0 = on pace; positive up to remaining bottles = roughly bottles left at window close. Above remaining bottles = window ended with bottles left (CT adds a growing +100 penalty). The same index computed on different aging curves appears in `Bell`, `Linear`, `Early`, `Late`, `Fast`, `TwinPeak`, `Simple` columns, with `Available` showing the type-assigned curve. See https://support.cellartracker.com/article/28-ready-to-drink-report for full details.
+- `Bell` / `Linear` / `Early` / `Late` / `Fast` / `TwinPeak` / `Simple`: The same drinkability index computed on different aging curves; `Available` always equals the curve assigned by wine type.
 
-**Maturity interpretation:**
-- `Available` < 0.3 — Too young, needs significant time
-- `Available` 0.3-0.7 — Approaching window, can open with decanting
-- `Available` 0.7-1.0 — In window, good to drink
-- `Available` > 1.0 — Past peak or at tail end of window
+**Window source priority:** Personal > Professional reviewer > Community. Maturity judgments must come from the `BeginConsume`/`EndConsume` dates and `Source` alone - never use `Available` thresholds (0.3/0.7/1.0 are meaningless for this data) to claim a wine is past peak or ready to drink. The listed window is already a weak signal; bottle-count pacing is all `Available` measures.
 
-**Window source priority:** Personal > Professional reviewer > Community
 
 The List table also has `BeginConsume`/`EndConsume` as year integers — use these as quick reference, Availability for detail.
 
@@ -184,9 +179,10 @@ When checking if a new wine would be redundant:
 
 ### Drinking Priority
 Combine List + Availability to find what should be opened soon:
-- `Available` > 1.0 — Past peak, drink ASAP
-- `EndConsume` year <= current year — Window closing
+- `EndConsume` year <= current year - Window closing or closed
+- `BeginConsume` year > current year - Window not yet open
 - Location = `Rack` — Already in drink-soon storage
+- Check `Available` to see consumption pace within window only; never use it to decide if a wine is "ready" or "past peak"
 
 ### Spend Analysis
 Purchase table tracks all historical buys:
@@ -220,6 +216,6 @@ When presenting cellar data:
 - Round CT community scores to 1 decimal place
 - Format valuations as USD with 2 decimal places
 - Use drinking window as year range (e.g., "2025-2030"), not full dates
-- Flag wines past peak with a clear indicator
+- Always show the drinking window (BeginConsume/EndConsume) when available; never infer maturity from Available thresholds
 - When listing inventory, include Location for actionability
 - Keep tables tight — don't dump all columns, select what's relevant to the query
