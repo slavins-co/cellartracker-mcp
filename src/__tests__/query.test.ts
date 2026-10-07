@@ -6,6 +6,8 @@ import {
   foldDiacritics,
   toIsoDate,
   drinkingPriority,
+  windowYear,
+  maturityStatus,
   spendSummary,
   deliverySummary,
   mostRecentDeliveryDate,
@@ -296,88 +298,208 @@ describe("vintageLabel", () => {
 });
 
 // ---------------------------------------------------------------------------
+// windowYear
+// ---------------------------------------------------------------------------
+describe("windowYear", () => {
+  it("parses a bare year", () => expect(windowYear("2028")).toBe(2028));
+  it("parses M/D/YYYY", () => expect(windowYear("12/31/2028")).toBe(2028));
+  it("parses YYYY-MM-DD", () => expect(windowYear("2028-12-31")).toBe(2028));
+  it("returns null for empty, whitespace, undefined and garbage", () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(windowYear("")).toBeNull();
+    expect(windowYear("   ")).toBeNull();
+    expect(windowYear(undefined)).toBeNull();
+    expect(windowYear("abc")).toBeNull();
+    vi.restoreAllMocks();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// maturityStatus
+// ---------------------------------------------------------------------------
+describe("maturityStatus", () => {
+  const noMisleading = /PAST PEAK|drink now/i;
+
+  it.each([
+    [{}, 2026, "No listed window"],
+    [{ BeginConsume: "2030", EndConsume: "2035" }, 2026, "Before listed window (opens 2030)"],
+    [{ BeginConsume: "2030" }, 2026, "Before listed window (opens 2030)"],
+    [{ BeginConsume: "2015", EndConsume: "2024" }, 2026, "Past listed window (2024)"],
+    [{ EndConsume: "2024" }, 2026, "Past listed window (2024)"],
+    [{ BeginConsume: "2020", EndConsume: "2026" }, 2026, "Late in listed window (2020-2026)"],
+    [{ EndConsume: "2026" }, 2026, "Late in listed window (?-2026)"],
+    [{ BeginConsume: "2020", EndConsume: "2030" }, 2026, "In listed window (2020-2030)"],
+    [{ BeginConsume: "2020" }, 2026, "In listed window (2020-?)"],
+    [{ BeginDrink: "2020", EndDrink: "2030" }, 2026, "In listed window (2020-2030)"],
+    [{ BeginConsume: "1/1/2023", EndConsume: "12/31/2028" }, 2026, "In listed window (2023-2028)"],
+  ] as [Row, number, string][])("labels %j at %i as %s", (row, year, label) => {
+    expect(maturityStatus(row, year).label).toBe(label);
+  });
+
+  it("never lets the index affect the label", () => {
+    const base = { BeginConsume: "2020", EndConsume: "2030" };
+    for (const available of ["-5", "0.2", "1.5", "250", ""]) {
+      expect(maturityStatus({ ...base, Available: available }, 2026).label).toBe(
+        "In listed window (2020-2030)"
+      );
+    }
+  });
+
+  it("parses source and index", () => {
+    const m = maturityStatus({ Source: " Personal ", Available: "x" }, 2026);
+    expect(m.windowSource).toBe("Personal");
+    expect(m.drinkabilityIndex).toBeNull();
+    expect(maturityStatus({}, 2026).windowSource).toBe("");
+    expect(maturityStatus({ Available: "-3.5" }, 2026).drinkabilityIndex).toBe(-3.5);
+  });
+
+  it("regression: 2019 Chardonnay (index 1.47) is in window, not past peak", () => {
+    const m = maturityStatus(
+      {
+        Wine: "2019 Chardonnay",
+        BeginConsume: "1/1/2023",
+        EndConsume: "12/31/2028",
+        Source: "Personal",
+        Inventory: "2",
+        Consumed: "1",
+        Pending: "0",
+        Available: "1.46944751381215",
+        Early: "1.46944751381215",
+        Linear: "0.882701962574167",
+      },
+      2026
+    );
+    expect(m.label).toBe("In listed window (2023-2028)");
+    expect(m.label).not.toMatch(noMisleading);
+    expect(m.drinkabilityIndex).toBeCloseTo(1.4694, 4);
+    expect(m.windowBegin).toBe(2023);
+    expect(m.windowEnd).toBe(2028);
+    expect(m.windowSource).toBe("Personal");
+  });
+
+  it("regression: 2024 Sauvignon Blanc (index 1.588) is in window, not past peak", () => {
+    const m = maturityStatus(
+      {
+        Wine: "2024 Sauvignon Blanc",
+        BeginConsume: "1/1/2025",
+        EndConsume: "12/31/2027",
+        Source: "Personal",
+        Inventory: "2",
+        Consumed: "0",
+        Pending: "0",
+        Available: "1.588",
+        Early: "1.588",
+        Linear: "1.17733089579525",
+      },
+      2026
+    );
+    expect(m.label).toBe("In listed window (2025-2027)");
+    expect(m.label).not.toMatch(noMisleading);
+    expect(m.drinkabilityIndex).toBe(1.588);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // drinkingPriority
 // ---------------------------------------------------------------------------
 describe("drinkingPriority", () => {
-  const makeListRow = (iWine: string, wine: string): Row => ({
+  const makeListRow = (iWine: string, wine: string, endConsume = ""): Row => ({
     iWine,
     Wine: wine,
     Vintage: "2015",
+    EndConsume: endConsume,
   });
 
   const makeAvailRow = (
     iWine: string,
     available: string,
-    endConsume: string
+    endConsume: string,
+    beginConsume = ""
   ): Row => ({
     iWine,
     Available: available,
     EndConsume: endConsume,
+    BeginConsume: beginConsume,
   });
 
-  it("sorts past-peak wines (Available > 1.0) first", () => {
+  const names = (rows: Row[]) => rows.map((r) => r.Wine);
+
+  it("sorts past-window and final-year wines before high-index in-window wines", () => {
     const list = [
-      makeListRow("1", "In Window Wine"),
-      makeListRow("2", "Past Peak Wine"),
+      makeListRow("1", "2019 Chardonnay"),
+      makeListRow("2", "2024 Sauvignon Blanc"),
+      makeListRow("3", "Past Window"),
+      makeListRow("4", "Final Year"),
     ];
     const avail = [
-      makeAvailRow("1", "0.8", "2030"),
-      makeAvailRow("2", "1.5", "2020"),
+      makeAvailRow("1", "1.46944751381215", "12/31/2028", "1/1/2023"),
+      makeAvailRow("2", "1.588", "12/31/2027", "1/1/2025"),
+      makeAvailRow("3", "-2", "2024", "2015"),
+      makeAvailRow("4", "-1", "2026", "2018"),
     ];
-    const result = drinkingPriority(list, avail, 2026);
-    expect(result[0].Wine).toBe("Past Peak Wine");
-    expect(result[1].Wine).toBe("In Window Wine");
+    const result = names(drinkingPriority(list, avail, 2026));
+    expect(result.slice(0, 2)).toEqual(["Past Window", "Final Year"]);
+    // SB ends 2027, Chardonnay 2028: earliest end first, index is only a tie-break
+    expect(result.slice(2)).toEqual(["2024 Sauvignon Blanc", "2019 Chardonnay"]);
   });
 
-  it("sorts window-closing wines before in-window wines", () => {
+  it("orders past-window wines oldest end first", () => {
+    const list = [makeListRow("1", "Ended 2024"), makeListRow("2", "Ended 2020")];
+    const avail = [makeAvailRow("1", "", "2024"), makeAvailRow("2", "", "2020")];
+    expect(names(drinkingPriority(list, avail, 2026))).toEqual(["Ended 2020", "Ended 2024"]);
+  });
+
+  it("orders in-window wines earliest end first", () => {
+    const list = [makeListRow("1", "Ends 2030"), makeListRow("2", "Ends 2028")];
+    const avail = [makeAvailRow("1", "", "2030"), makeAvailRow("2", "", "2028")];
+    expect(names(drinkingPriority(list, avail, 2026))).toEqual(["Ends 2028", "Ends 2030"]);
+  });
+
+  it("breaks ties by higher drinkability index first, null last", () => {
     const list = [
-      makeListRow("1", "In Window"),
-      makeListRow("2", "Window Closing"),
+      makeListRow("1", "Low"),
+      makeListRow("2", "High"),
+      makeListRow("3", "None"),
     ];
     const avail = [
-      makeAvailRow("1", "0.8", "2030"),
-      makeAvailRow("2", "0.5", "2025"), // EndConsume <= currentYear
+      makeAvailRow("1", "0.5", "2030"),
+      makeAvailRow("2", "3.2", "2030"),
+      makeAvailRow("3", "", "2030"),
     ];
-    const result = drinkingPriority(list, avail, 2026);
-    expect(result[0].Wine).toBe("Window Closing");
-    expect(result[1].Wine).toBe("In Window");
+    expect(names(drinkingPriority(list, avail, 2026))).toEqual(["High", "Low", "None"]);
   });
 
-  it("sorts no-data wines last", () => {
+  it("uses the Availability M/D/YYYY end date when the List value is empty", () => {
     const list = [
-      makeListRow("1", "No Data Wine"),
-      makeListRow("2", "Past Peak Wine"),
+      makeListRow("1", "From Avail"), // EndConsume empty on List
+      makeListRow("2", "Ends 2029", "2029"),
     ];
-    const avail = [
-      makeAvailRow("2", "1.2", "2020"),
-      // No availability data for wine 1
-    ];
+    const avail = [makeAvailRow("1", "", "12/31/2028"), makeAvailRow("2", "", "2029")];
+    // 2028 (not 12) -> in window, ahead of 2029; 12 would have been "past window"
     const result = drinkingPriority(list, avail, 2026);
-    expect(result[0].Wine).toBe("Past Peak Wine");
-    expect(result[1].Wine).toBe("No Data Wine");
+    expect(names(result)).toEqual(["From Avail", "Ends 2029"]);
+    expect(maturityStatus(result[0], 2026).windowEnd).toBe(2028);
   });
 
-  it("sorts all five tiers correctly", () => {
+  it("puts not-yet-open wines after in-window, earliest begin first, then no-data last", () => {
     const list = [
       makeListRow("1", "No Data"),
-      makeListRow("2", "Approaching"),
+      makeListRow("2", "Opens 2032"),
       makeListRow("3", "In Window"),
-      makeListRow("4", "Window Closing"),
-      makeListRow("5", "Past Peak"),
+      makeListRow("4", "Opens 2028"),
+      makeListRow("5", "Past Window"),
     ];
     const avail = [
-      // No data for wine 1
-      makeAvailRow("2", "0.5", "2035"),   // approaching (0.3-0.7, end far away)
-      makeAvailRow("3", "0.8", "2030"),   // in window (0.7-1.0)
-      makeAvailRow("4", "0.5", "2025"),   // window closing (endConsume <= 2026)
-      makeAvailRow("5", "1.3", "2020"),   // past peak (> 1.0)
+      makeAvailRow("2", "-9", "2040", "2032"),
+      makeAvailRow("3", "1", "2035", "2020"),
+      makeAvailRow("4", "-9", "2040", "2028"),
+      makeAvailRow("5", "1", "2020", "2010"),
     ];
-    const result = drinkingPriority(list, avail, 2026);
-    expect(result.map((r) => r.Wine)).toEqual([
-      "Past Peak",
-      "Window Closing",
+    expect(names(drinkingPriority(list, avail, 2026))).toEqual([
+      "Past Window",
       "In Window",
-      "Approaching",
+      "Opens 2028",
+      "Opens 2032",
       "No Data",
     ]);
   });
