@@ -489,10 +489,7 @@ export function createServer(): McpServer {
         const m = maturityStatus(row, currentYear);
         const status = m.label;
 
-        const window =
-          m.windowBegin !== null || m.windowEnd !== null
-            ? `${m.windowBegin ?? "?"}-${m.windowEnd ?? "?"}`
-            : "unknown";
+        const window = m.window;
         const windowText = m.windowSource ? `${window} (${m.windowSource})` : window;
         const idx = m.drinkabilityIndex;
 

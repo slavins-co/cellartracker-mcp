@@ -672,6 +672,9 @@ describe("structured output — data tools (fixture cache)", () => {
         "utf-8"
       );
       process.env.CT_CACHE_DIR = dir;
+      // Freeze the clock inside the 2024-2031 window so the Pacing wording is stable.
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(new Date("2026-10-07T12:00:00Z"));
       const res = await call("drinking-recommendations", {});
       const text = textOf(res);
       expect(text).toContain("Window: 2024-2031 (CellarTracker)");
@@ -681,6 +684,7 @@ describe("structured output — data tools (fixture cache)", () => {
       expect(sc.recommendations[0].window).toBe("2024-2031");
       expect(sc.recommendations[0].windowEnd).toBe(2031);
     } finally {
+      vi.useRealTimers();
       if (prev === undefined) delete process.env.CT_CACHE_DIR;
       else process.env.CT_CACHE_DIR = prev;
       fs.rmSync(dir, { recursive: true, force: true });

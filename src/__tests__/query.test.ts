@@ -318,6 +318,16 @@ describe("windowYear", () => {
 // maturityStatus
 // ---------------------------------------------------------------------------
 describe("maturityStatus", () => {
+  it("falls back to BeginDrink/EndDrink when the Consume columns are blank", () => {
+    const m = maturityStatus({ BeginConsume: "", EndConsume: "", BeginDrink: "2024", EndDrink: "2030" }, 2026);
+    expect(m.label).toBe("In listed window (2024-2030)");
+    expect(m.window).toBe("2024-2030");
+  });
+
+  it("reports window 'unknown' when no bounds are listed", () => {
+    expect(maturityStatus({}, 2026).window).toBe("unknown");
+  });
+
   const noMisleading = /PAST PEAK|drink now/i;
 
   it.each([

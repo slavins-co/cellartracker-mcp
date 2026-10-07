@@ -231,7 +231,7 @@ The richest scoring and maturity data. One row per wine in inventory.
 | Late | float | Same drinkability index on a late-drinking curve |
 | Fast | float | Same drinkability index on a fast-maturing curve |
 | TwinPeak | float | Same drinkability index on a two-peak aging model |
-| Simple | float | Same drinkability index on a simple linear model |
+| Simple | float | Same drinkability index on CT's "Simple" curve (shape not documented by CT) |
 
 **Curve Assignment:** CellarTracker assigns a single curve per wine type (e.g., Late Bell for red Bordeaux/N. Rhône/Rioja; Twin Peak for red S. Rhône, white N. Rhône, white German; Fast Aging for rosé/Beaujolais/Moscato d'Asti; Standard Bell for other reds; Early Bell for other dry whites). The `Available` column always shows the index for the type-assigned curve; all 7 columns compute the same metric on different curves so you can compare pacing under different aging assumptions.
 

@@ -196,6 +196,8 @@ export interface MaturityStatus {
   windowEnd: number | null;
   windowSource: string;
   drinkabilityIndex: number | null;
+  /** "B-E" with "?" for a missing bound, or "unknown" when neither is listed. */
+  window: string;
 }
 
 /**
@@ -225,15 +227,16 @@ export interface MaturityStatus {
  * past peak.
  */
 export function maturityStatus(row: Row, currentYear: number): MaturityStatus {
-  const windowBegin = windowYear(row.BeginConsume ?? row.BeginDrink);
-  const windowEnd = windowYear(row.EndConsume ?? row.EndDrink);
+  const windowBegin = windowYear(row.BeginConsume || row.BeginDrink);
+  const windowEnd = windowYear(row.EndConsume || row.EndDrink);
   const windowSource = (row.Source ?? "").trim();
   const idx = row.Available?.trim() ? parseFloat(row.Available) : NaN;
   const drinkabilityIndex = isNaN(idx) ? null : idx;
 
   const span = `${windowBegin ?? "?"}-${windowEnd ?? "?"}`;
+  const listed = windowBegin !== null || windowEnd !== null;
   let label: string;
-  if (windowBegin === null && windowEnd === null) label = "No listed window";
+  if (!listed) label = "No listed window";
   else if (windowBegin !== null && currentYear < windowBegin)
     label = `Before listed window (opens ${windowBegin})`;
   else if (windowEnd !== null && currentYear > windowEnd)
@@ -242,7 +245,14 @@ export function maturityStatus(row: Row, currentYear: number): MaturityStatus {
     label = `Late in listed window (${span})`;
   else label = `In listed window (${span})`;
 
-  return { label, windowBegin, windowEnd, windowSource, drinkabilityIndex };
+  return {
+    label,
+    windowBegin,
+    windowEnd,
+    windowSource,
+    drinkabilityIndex,
+    window: listed ? span : "unknown",
+  };
 }
 
 /**
@@ -276,16 +286,16 @@ export function drinkingPriority(
     return [2, e ?? END_LAST, idx];
   }
 
-  merged.sort((a, b) => {
-    const ka = sortKey(a);
-    const kb = sortKey(b);
+  // Compute each key once rather than inside the comparator.
+  const keyed = merged.map((row) => ({ row, key: sortKey(row) }));
+  keyed.sort((a, b) => {
     for (let i = 0; i < 3; i++) {
-      if (ka[i] !== kb[i]) return ka[i] < kb[i] ? -1 : 1;
+      if (a.key[i] !== b.key[i]) return a.key[i] < b.key[i] ? -1 : 1;
     }
     return 0;
   });
 
-  return merged;
+  return keyed.map((k) => k.row);
 }
 
 export interface SpendSummaryResult {
