@@ -42,6 +42,7 @@ import {
   crossReference,
   deliverySummary,
   drinkingPriority,
+  maturityStatus,
   foldDiacritics,
   loadTable,
   mostRecentDeliveryDate,
@@ -311,32 +312,6 @@ function fmtWine(row: Row, includeScores = false): string {
   return lines.join("\n");
 }
 
-/** Return a human-readable maturity status. */
-function maturityLabel(row: Row, currentYear: number): string {
-  const avail = (row.Available ?? "").trim();
-  const end = (row.EndConsume ?? row.EndDrink ?? "").trim();
-
-  if (avail) {
-    const a = parseFloat(avail);
-    if (!isNaN(a)) {
-      if (a > 1.0) return "PAST PEAK — drink now!";
-      if (a >= 0.7) return "In window — ready";
-      if (a >= 0.3) return "Approaching window";
-      return "Young — hold";
-    }
-  }
-
-  if (end) {
-    const endYr = Math.floor(parseFloat(end));
-    if (!isNaN(endYr)) {
-      if (endYr <= currentYear) return `Window closing (${endYr})`;
-      if (endYr <= currentYear + 2) return `Drink soon (by ${endYr})`;
-    }
-  }
-
-  return "No maturity data";
-}
-
 const require = createRequire(import.meta.url);
 const { version } = require("../package.json") as { version: string };
 
@@ -466,8 +441,11 @@ export function createServer(): McpServer {
     {
       description:
         "Get wine drinking recommendations sorted by urgency. " +
-        "Prioritizes wines that are past peak, then those with closing windows, " +
-        "then wines currently in their drinking window. Optionally filter by color.",
+        "Orders wines by their listed drinking window: past the window first, then in the final year, " +
+        "then the rest of the window (earliest end first), then not yet open. " +
+        "Status describes the listed window only; CellarTracker's drinkability index " +
+        "(a bottle-count pacing number, not a maturity measure) is reported separately and only breaks ties. " +
+        "Optionally filter by color.",
       inputSchema: {
         color: z.string().optional().describe("Filter by color"),
         occasion: z.string().optional().describe("Occasion description"),
@@ -508,22 +486,42 @@ export function createServer(): McpServer {
         const wine = row.Wine ?? row.WineName ?? "Unknown";
         const vintage = vintageLabel(row);
         const loc = row.Location ?? row.Bin ?? "";
-        const status = maturityLabel(row, currentYear);
+        const m = maturityStatus(row, currentYear);
+        const status = m.label;
 
-        const begin = row.BeginConsume ?? row.BeginDrink ?? "";
-        const end = row.EndConsume ?? row.EndDrink ?? "";
-        const window = begin || end ? `${begin || "?"}-${end || "?"}` : "unknown";
+        const window =
+          m.windowBegin !== null || m.windowEnd !== null
+            ? `${m.windowBegin ?? "?"}-${m.windowEnd ?? "?"}`
+            : "unknown";
+        const windowText = m.windowSource ? `${window} (${m.windowSource})` : window;
+        const idx = m.drinkabilityIndex;
 
         const scores = formatScores(row, KEY_SCORE_FIELDS);
 
         const link = wineUrl(row.iWine);
 
-        recommendations.push({ ...toWineRow(row), status, window });
+        recommendations.push({
+          ...toWineRow(row),
+          status,
+          window,
+          drinkabilityIndex: idx,
+          windowBegin: m.windowBegin,
+          windowEnd: m.windowEnd,
+          windowSource: m.windowSource,
+        });
 
         lines.push(`${i + 1}. ${vintage} ${wine}`);
         if (loc) lines.push(`   Location: ${loc}`);
         lines.push(`   Status: ${status}`);
-        lines.push(`   Window: ${window}`);
+        lines.push(`   Window: ${windowText}`);
+        if (idx !== null) {
+          const signed = `${idx >= 0 ? "+" : "-"}${Math.abs(idx).toFixed(2)}`;
+          lines.push(
+            idx >= 0
+              ? `   Pacing: CT drinkability index ${signed} (bottles behind CT's drinking-pace curve)`
+              : `   Pacing: CT drinkability index ${signed} (ahead of CT's pace, or window not yet open)`
+          );
+        }
         lines.push(`   Scores: ${scores}`);
         if (link) lines.push(`   Link: ${link}`);
         lines.push("");
