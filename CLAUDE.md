@@ -11,7 +11,7 @@ TypeScript MCP server and Claude Code plugin for CellarTracker. This repo is pub
 
 ## Rules
 
-- On every version bump, run `npm run verify-versions`. The version lives in three files: `package.json`, `.claude-plugin/plugin.json` and `manifest.json`.
+- On every version bump, run `npm run verify-versions`. The version lives in `package.json`, `manifest.json`, `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`, `server.json` (twice) and the npx pin in `.mcp.json`; the script checks all of them.
 - Read `tasks/lessons.md` before planning. It holds this repo's technical gotchas.
 - Commit messages, PR titles and bodies, issues and comments carry no AI attribution (no Co-Authored-By trailer, no "Generated with Claude Code" line) and no session shorthand. Write them for a reader who never saw the session.
 - Merges, releases, tag pushes and npm publishes belong to the maintainer. In cloud sessions a hook refuses them: open the PR and stop there.

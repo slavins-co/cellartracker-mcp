@@ -134,3 +134,6 @@ When a task needs to verify an actual CellarTracker URL pattern resolves (e.g. p
 
 ## `npm run pack:check` Leaves node_modules Production-Only
 - `scripts/pack-check.sh` does `rm -rf node_modules && npm ci --omit=dev`, so after a local run `vitest`/`tsc` are gone and `npm test` fails with `sh: vitest: command not found` (exit 127), which looks like a broken toolchain. Run `npm ci` again after a local pack check before testing. (Issue #131)
+
+## The `.mcp.json` npx Pin Is a Version Location Too
+- The plugin launches the server as `npx -y cellartracker-mcp@X.Y.Z` from `.mcp.json`. The 0.5.2 bump updated every file `verify-versions` checked and still left this pin at 0.5.1, which would have kept plugin users on the old server after the release. `verify-versions` now reads the pin, so a stale one fails the check. When adding any new place that names the version, add it to `scripts/verify-versions.mjs` in the same change. (Issue #131 follow-up)
