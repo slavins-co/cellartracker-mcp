@@ -516,11 +516,14 @@ export function createServer(): McpServer {
         lines.push(`   Window: ${windowText}`);
         if (idx !== null) {
           const signed = `${idx >= 0 ? "+" : "-"}${Math.abs(idx).toFixed(2)}`;
-          lines.push(
-            idx >= 0
-              ? `   Pacing: CT drinkability index ${signed} (bottles behind CT's drinking-pace curve)`
-              : `   Pacing: CT drinkability index ${signed} (ahead of CT's pace, or window not yet open)`
-          );
+          // Past the window CT adds a growing +100 penalty, so "bottles behind" would misread it.
+          const meaning =
+            m.windowEnd !== null && currentYear > m.windowEnd
+              ? "past the listed window; CT adds a growing penalty here"
+              : idx >= 0
+                ? "bottles behind CT's drinking-pace curve"
+                : "ahead of CT's pace, or window not yet open";
+          lines.push(`   Pacing: CT drinkability index ${signed} (${meaning})`);
         }
         lines.push(`   Scores: ${scores}`);
         if (link) lines.push(`   Link: ${link}`);

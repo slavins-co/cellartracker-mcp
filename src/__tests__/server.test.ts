@@ -639,6 +639,15 @@ describe("structured output — data tools (fixture cache)", () => {
     });
   });
 
+  it("drinking-recommendations does not call a past-window index 'bottles behind'", async () => {
+    // Past the window, CT adds a +100 penalty to the index, so "bottles behind
+    // pace" would misread it. Fixture iWine 101's window ended in 2024.
+    const text = textOf(await call("drinking-recommendations", {}));
+    const block101 = text.split(/\n\d+\. /).find((b) => b.includes("Past listed window (2024)"))!;
+    expect(block101).toContain("Pacing: CT drinkability index +1.20 (past the listed window; CT adds a growing penalty here)");
+    expect(block101).not.toContain("bottles behind");
+  });
+
   it("drinking-recommendations renders a 4-digit year for an Availability-only M/D/YYYY window", async () => {
     // iWine 201 has List-side BeginConsume/EndConsume; build an isolated cache
     // where only the Availability row carries the window.
