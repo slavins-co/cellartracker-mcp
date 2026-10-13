@@ -19,9 +19,11 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
+      # Trusted publishing (OIDC) needs npm >= 11.5.1; Node 20 ships npm 10.
+      # npm authenticates via the id-token above against the trusted
+      # publisher configured on npmjs.com, so no stored token is needed.
+      - run: npm install -g npm@11
       - run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   desktop-extension:
     runs-on: ubuntu-latest

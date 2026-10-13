@@ -1,5 +1,5 @@
 /**
- * Verify that all six version locations agree, and that MCP registry
+ * Verify that all seven version locations agree, and that MCP registry
  * identity fields match. Run via `npm run verify-versions`; wired into
  * prepublishOnly so a mismatch blocks publishing.
  */
@@ -12,6 +12,15 @@ const manifest = read("manifest.json");
 const plugin = read(".claude-plugin/plugin.json");
 const marketplace = read(".claude-plugin/marketplace.json");
 const server = read("server.json");
+const mcp = read(".mcp.json");
+
+// The plugin launches the server via npx with a pinned version
+// ("cellartracker-mcp@X.Y.Z"). A stale pin keeps plugin users on the old
+// server even after a release, so it must match too.
+const pinPrefix = `${pkg.name}@`;
+const pinArg = Object.values(mcp.mcpServers ?? {})
+  .flatMap((s) => s.args ?? [])
+  .find((a) => typeof a === "string" && a.startsWith(pinPrefix));
 
 const versions = {
   "package.json": pkg.version,
@@ -20,6 +29,7 @@ const versions = {
   ".claude-plugin/marketplace.json (plugins[0])": marketplace.plugins[0].version,
   "server.json": server.version,
   "server.json (packages[0])": server.packages[0].version,
+  ".mcp.json (npx pin)": pinArg ? pinArg.slice(pinPrefix.length) : "(missing)",
 };
 
 const mismatched = Object.entries(versions).filter(([, v]) => v !== pkg.version);
